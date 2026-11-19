@@ -1,6 +1,6 @@
 import os,sys
 sys.path.insert(0,os.path.dirname(os.path.dirname(__file__)))
-from sales import SalesState,sales_instruction,fast_sales_reply
+from sales import SalesState,sales_instruction,fast_sales_reply,parse_spoken_area
 
 OFFER='профессиональные поломоечные машины VMD'
 
@@ -48,3 +48,16 @@ def test_handoff_does_not_claim_booking():
     s.observe('Свяжите меня с менеджером')
     assert s.requested_handoff
     assert 'не заявляй' in sales_instruction(s,OFFER,'подбор').lower()
+
+
+def test_spoken_area_understands_real_phone_language():
+    assert parse_spoken_area('У нас склад две тысячи пятьсот квадратов') == 2500
+    assert parse_spoken_area('Площадь полторы тысячи квадратных метров') == 1500
+    assert parse_spoken_area('Убираем тысячу двести квадратов') == 1200
+    assert parse_spoken_area('У нас 2500 квадратов') == 2500
+    assert parse_spoken_area('Мой номер 89112223344') is None
+    state=SalesState()
+    state.observe('Склад две тысячи пятьсот квадратов')
+    assert state.area_m2==2500
+    assert 'покрыти' in fast_sales_reply(
+        'две тысячи пятьсот квадратов',state,OFFER).lower()
