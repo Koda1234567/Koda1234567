@@ -25,7 +25,7 @@ class Config:
     whisper_device:str=field(default_factory=lambda:env('WHISPER_DEVICE','cpu'))
     whisper_compute_type:str=field(default_factory=lambda:env('WHISPER_COMPUTE_TYPE','int8'))
     tts_engine:str=field(default_factory=lambda:env('TTS_ENGINE','piper').strip().lower())
-    piper_voice_path:str=field(default_factory=lambda:env('PIPER_VOICE_PATH',os.path.expanduser('~/.local/share/zvonko/voices/ru_RU-denis-medium.onnx')))
+    piper_voice_path:str=field(default_factory=lambda:env('PIPER_VOICE_PATH',os.path.expanduser('~/.local/share/zvonko/voices/ru_RU-dmitri-medium.onnx')))
     piper_length_scale:float=field(default_factory=lambda:float(env('PIPER_LENGTH_SCALE','0.95')))
     sales_offer:str=field(default_factory=lambda:env('SALES_OFFER','профессиональные поломоечные машины VMD'))
     sales_goal:str=field(default_factory=lambda:env('SALES_GOAL','выяснить тип объекта, площадь, способ уборки и предложить подбор с живым специалистом'))
