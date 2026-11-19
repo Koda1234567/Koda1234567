@@ -28,10 +28,10 @@ fi
 sudo systemctl start ollama
 echo 'Waiting for Ollama localhost API'
 for attempt in $(seq 1 25); do
- if curl --fail --silent http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+ if curl --noproxy '*' --fail --silent http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
  sleep 1
 done
-curl --fail --silent http://127.0.0.1:11434/api/tags >/dev/null ||
+curl --noproxy '*' --fail --silent http://127.0.0.1:11434/api/tags >/dev/null ||
   { echo 'Ollama is not yet listening on localhost:11434' >&2; exit 1; }
 echo '=== Stage 3: light Russian language model for 16GB RAM ==='
 ollama pull qwen2.5:1.5b
