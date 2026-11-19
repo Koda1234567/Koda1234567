@@ -1,0 +1,26 @@
+name: Zvonko Phone Gateway tests
+on:
+  push:
+    paths:
+      - 'zvonko/telephony/**'
+      - '.github/workflows/zvonko-phone-tests.yml'
+  pull_request:
+    paths:
+      - 'zvonko/telephony/**'
+  workflow_dispatch:
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r zvonko/telephony/requirements.txt pytest
+      - name: Compile and test
+        run: |
+          python -m compileall -q zvonko/telephony
+          python -m pytest -q zvonko/telephony/tests
