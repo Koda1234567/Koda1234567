@@ -16,6 +16,11 @@ source "$ENV_FILE"
 set +a
 export OLLAMA_MODEL_V3="$(printenv OLLAMA_MODEL_V3 || echo qwen2.5:3b)"
 export TTS_ENGINE=piper
+export PIPER_VOICE_PATH="$HOME/.local/share/zvonko/voices/ru_RU-denis-medium.onnx"
+if [[ ! -s "$PIPER_VOICE_PATH" ]]; then
+  echo 'V3 voice Denis missing: bash setup-v3-wsl.sh' >&2
+  exit 1
+fi
 echo 'Starting V3. Wait for Connected to local Asterisk ARI, then call 201 in MicroSIP.'
 echo 'Original 200 can still run separately. Ctrl+C stops only V3.'
 exec .venv/bin/python -u server_v3.py
