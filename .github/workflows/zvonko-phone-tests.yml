@@ -29,3 +29,4 @@ jobs:
           bash -n zvonko/telephony/install-ubuntu.sh
           bash -n zvonko/telephony/configure-novofon.sh
           bash -n zvonko/telephony/check-server.sh
+          bash -n zvonko/telephony/setup-local-microsip-wsl.sh
