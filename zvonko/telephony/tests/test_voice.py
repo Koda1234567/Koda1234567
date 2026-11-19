@@ -3,7 +3,7 @@ sys.path.insert(0,os.path.dirname(os.path.dirname(__file__)))
 from dataclasses import replace
 import numpy as np
 from config import Config,allowed_test_call
-from voice import ulaw_encode,ulaw_decode,rtp_payload,stop_requested
+from voice import ulaw_encode,ulaw_decode,rtp_payload,stop_requested,quick_voice_reply
 
 def test_ulaw_roundtrip():
     x=np.array([-32000,-20000,-5000,-100,-1,0,1,100,5000,20000,32000],dtype=np.int16)
@@ -29,3 +29,11 @@ def test_manual_allowlist():
 def test_stop():
     assert stop_requested('Больше не звоните пожалуйста')
     assert not stop_requested('Перезвоните завтра')
+
+def test_quick_voice_reply_hello_and_hearing():
+    assert 'слышу' in quick_voice_reply('Привет, слышно меня?')
+    assert quick_voice_reply('Слышите меня?') is not None
+    assert quick_voice_reply('Алло!') is not None
+    assert quick_voice_reply('Привет') is not None
+    assert quick_voice_reply('Сколько стоит робот для склада?') is None
+    assert quick_voice_reply('Здравствуйте, расскажите мне о подборе и обслуживании уборочного оборудования') is None
