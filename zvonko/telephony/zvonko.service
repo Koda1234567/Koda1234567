@@ -1,0 +1,24 @@
+[Unit]
+Description=Zvonko AI SIP media gateway (requires configured Asterisk and Ollama)
+After=network-online.target asterisk.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zvonko
+Group=zvonko
+WorkingDirectory=/opt/zvonko
+EnvironmentFile=/etc/zvonko.env
+ExecStart=/opt/zvonko/.venv/bin/python -u /opt/zvonko/server.py
+Restart=on-failure
+RestartSec=8
+TimeoutStartSec=180
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictSUIDSGID=true
+ReadWritePaths=/opt/zvonko
+
+[Install]
+WantedBy=multi-user.target
