@@ -198,7 +198,14 @@ class PhoneCall:
         self.playing=True;self.interrupt.clear()
         try:
             tts_started=time.monotonic()
-            pcm=await self.ai.synthesize(text)
+            try:
+                pcm=await self.ai.synthesize(text)
+            except (KeyError,ValueError) as exc:
+                # An unsupported symbol or phoneme must not terminate the call.
+                log.warning('TTS rejected reply (%s); speaking safe fallback',
+                            type(exc).__name__)
+                pcm=await self.ai.synthesize(
+                    'Извините, не получилось озвучить ответ. Повторите вопрос, пожалуйста.')
             log.info('Synthesized reply in %.2fs (audio %.2fs)',
                      time.monotonic()-tts_started,len(pcm)/8000)
             ulaw=ulaw_encode(pcm)
