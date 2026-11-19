@@ -103,7 +103,7 @@ def normalize_tts_text(text:str)->str:
     text=re.sub(r'\s+([,.!?;:])',r'\1',text)
     return text or 'Повторите, пожалуйста.'
 
-def concise_voice_reply(text:str,limit:int=135)->str:
+def concise_voice_reply(text:str,limit:int=105)->str:
     """Keep natural phone replies short so the caller is not waiting 13 seconds."""
     text=re.sub(r'\s+',' ',text).strip()
     if len(text)<=limit:return text
@@ -263,6 +263,6 @@ def quick_voice_reply(heard:str)->str|None:
     if len(words)>9:return None
     if words & {'слышно','слышите','алло'}:
         return 'Да, я вас слышу! Я Звонко, голосовой ИИ. Чем могу помочь?'
-    if words & {'привет','здравствуйте'} and len(words)<=5:
-        return 'Здравствуйте! Я на связи. Что вас интересует?'
+    if words and words <= {'привет','здравствуйте','добрый','день','вечер','утро'}:
+        return 'Здравствуйте! Я на связи. Подскажите, какая у вас задача?'
     return None
