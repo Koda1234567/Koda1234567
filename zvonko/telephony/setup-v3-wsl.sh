@@ -15,8 +15,23 @@ if ! curl --noproxy '*' --fail --silent --max-time 3 http://127.0.0.1:11434/api/
   echo 'Start Ollama with sudo systemctl start ollama' >&2
   exit 1
 fi
-if [[ ! -s "$VOICE_DIR/ru_RU-dmitri-medium.onnx" ]]; then
-  echo 'Piper voice missing: bash install-piper-wsl.sh' >&2
+if [[ ! -x .venv/bin/python ]]; then
+  echo 'Python environment missing.' >&2
+  exit 1
+fi
+VOICE_ID=ru_RU-denis-medium
+if [[ ! -s "$VOICE_DIR/$VOICE_ID.onnx" || ! -s "$VOICE_DIR/$VOICE_ID.onnx.json" ]]; then
+  if [[ -n "$(printenv ZVONKO_DOWNLOAD_PROXY || true)" ]]; then
+    export HTTPS_PROXY="$ZVONKO_DOWNLOAD_PROXY"
+    export HTTP_PROXY="$ZVONKO_DOWNLOAD_PROXY"
+    export NO_PROXY='localhost,127.0.0.1,::1'
+  fi
+  mkdir -p "$VOICE_DIR"
+  echo "=== Downloading alternative Russian voice $VOICE_ID ==="
+  .venv/bin/python -m piper.download_voices --download-dir "$VOICE_DIR" "$VOICE_ID"
+fi
+if [[ ! -s "$VOICE_DIR/$VOICE_ID.onnx" || ! -s "$VOICE_DIR/$VOICE_ID.onnx.json" ]]; then
+  echo 'Alternative voice not downloaded; 200 untouched.' >&2
   exit 1
 fi
 echo "=== Pulling stronger language model $MODEL ==="
