@@ -121,15 +121,24 @@ class SpeechPipeline:
     def __init__(self,cfg:Any,http:aiohttp.ClientSession):
         self.cfg=cfg;self.http=http
         self._whisper=None;self._vad=None;self._tts=None
+        self._piper=None;self._piper_config=None
 
     def load_models(self):
         from faster_whisper import WhisperModel
         import webrtcvad
-        from vosk_tts import Model,Synth
         self._whisper=WhisperModel(self.cfg.whisper_model,device=self.cfg.whisper_device,
                                    compute_type=self.cfg.whisper_compute_type)
         self._vad=webrtcvad.Vad(self.cfg.vad_aggressiveness)
-        self._tts=Synth(Model(model_name=self.cfg.tts_model))
+        if self.cfg.tts_engine=='piper':
+            from piper import PiperVoice,SynthesisConfig
+            voice_path=Path(self.cfg.piper_voice_path).expanduser()
+            if not voice_path.is_file() or not Path(str(voice_path)+'.json').is_file():
+                raise RuntimeError('Piper Russian voice missing. Run install-piper-wsl.sh first.')
+            self._piper=PiperVoice.load(voice_path,use_cuda=False)
+            self._piper_config=SynthesisConfig(length_scale=self.cfg.piper_length_scale)
+        else:
+            from vosk_tts import Model,Synth
+            self._tts=Synth(Model(model_name=self.cfg.tts_model))
 
     def speech_frame(self,pcm:np.ndarray)->bool:
         if self._vad is None:raise RuntimeError('Load speech models before calls')
@@ -147,7 +156,7 @@ class SpeechPipeline:
             return ' '.join(x.text.strip() for x in parts).strip()
         return await asyncio.to_thread(run)
 
-    async def respond(self,history:list[dict[str,str]])->str:
+    async def respond(self,history:list[dict[str,str]],extra_instruction:str='')->str:
         system=('Ты русскоязычный ИИ-консультант, разговариваешь с человеком ПО ТЕЛЕФОНУ. '
           'Представься ИИ в самом начале. Общайся тепло и естественно: короткие '
           'фразы и один вопрос за раз, никаких длинных списков. '
@@ -156,7 +165,8 @@ class SpeechPipeline:
           'Не придумывай цены или гарантии. Не собирай чувствительные данные. '
           'При отказе не уговаривай, попрощайся. '
           'Предлагай консультацию живого менеджера, но не обещай выполненных действий. '
-          'Вот проверенные сведения о продукте: '+self.cfg.product_info[:3500])
+          'Вот проверенные сведения о продукте: '+self.cfg.product_info[:1400]+
+          (' '+extra_instruction[:1500] if extra_instruction else ''))
         payload={'model':self.cfg.ollama_model,
                  'messages':[{'role':'system','content':system}]+history[-12:],
                  'stream':False,'options':{'temperature':0.55,'num_predict':64,'num_ctx':2048}}
@@ -169,6 +179,9 @@ class SpeechPipeline:
         return concise_voice_reply(reply)
 
     async def synthesize(self,text:str)->np.ndarray:
+        if self._piper is not None:
+            chunks=[part async for part in self.stream_synthesize(text)]
+            return np.concatenate(chunks) if chunks else np.empty(0,dtype=np.int16)
         if self._tts is None:raise RuntimeError('Vosk TTS not loaded')
         def run():
             with NamedTemporaryFile(suffix='.wav',delete=False) as f:path=f.name
@@ -185,6 +198,52 @@ class SpeechPipeline:
                         8000//g,rate//g),-32768,32767).astype(np.int16)
             finally:Path(path).unlink(missing_ok=True)
         return await asyncio.to_thread(run)
+
+    async def stream_synthesize(self,text:str):
+        """Yield PCM16 at 8kHz as a Piper voice generates each speech chunk.
+
+        Piper runs on CPU while Ollama uses the GPU. No waveform needs to be
+        fully generated before the first audio packet reaches the SIP caller.
+        """
+        if self._piper is None:
+            yield await self.synthesize(text)
+            return
+        loop=asyncio.get_running_loop()
+        queue=asyncio.Queue()
+        done=object()
+
+        def produce():
+            from math import gcd
+            try:
+                for chunk in self._piper.synthesize(
+                        normalize_tts_text(text),syn_config=self._piper_config):
+                    if chunk.sample_channels != 1 or chunk.sample_width != 2:
+                        raise RuntimeError('Piper must output mono PCM16')
+                    pcm=chunk.audio_int16_array
+                    g=gcd(chunk.sample_rate,8000)
+                    samples=np.clip(resample_poly(pcm.astype(np.float32),
+                                  8000//g,chunk.sample_rate//g),
+                                  -32768,32767).astype(np.int16)
+                    loop.call_soon_threadsafe(queue.put_nowait,samples)
+            except Exception as exc:
+                loop.call_soon_threadsafe(queue.put_nowait,exc)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait,done)
+
+        worker=asyncio.create_task(asyncio.to_thread(produce))
+        try:
+            while True:
+                part=await queue.get()
+                if part is done:break
+                if isinstance(part,Exception):raise part
+                if len(part):yield part
+        finally:
+            if not worker.done():
+                # Inference in a worker thread will finish in the background;
+                # avoid blocking the call teardown.
+                worker.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+            else:
+                await worker
 
 def stop_requested(text:str)->bool:
     s=text.casefold()
