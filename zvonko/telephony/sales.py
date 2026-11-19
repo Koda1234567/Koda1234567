@@ -86,7 +86,7 @@ def fast_sales_reply(heard: str, state: SalesState, offer: str) -> str | None:
     if _BUDGET.search(heard):
         if state.area_m2:
             return 'Понимаю, бюджет важен. А сейчас убираете вручную или машиной?'
-        return 'Понимаю. Чтобы не предлагать лишнего, какая примерно площадь уборки?'
+        return 'Понимаю, бюджет важен. Какая примерно площадь уборки?'
     if _CHINA.search(heard):
         return 'Сомнения понятны. Что для вас важнее: сервис, ресурс или гарантия?'
     if _PRICE.search(heard):
