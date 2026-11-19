@@ -25,7 +25,6 @@ if sudo test -e "$FRAGMENT" || sudo grep -Fq '#include pjsip_zvonko_local.conf' 
   echo 'Check: sudo asterisk -rx "pjsip show endpoints"'
   exit 0
 fi
-if sudo grep -Fq '^' /dev/null; then :; fi
 if ! sudo grep -q '^bind=0\.0\.0\.0:5060$' "$MAIN" && ! sudo grep -q '^bind=127\.0\.0\.1:5060$' "$MAIN"; then
   echo 'Transport bind differs from expected 0.0.0.0:5060 or 127.0.0.1:5060.' >&2
   exit 1
