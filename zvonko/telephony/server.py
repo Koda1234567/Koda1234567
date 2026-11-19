@@ -11,6 +11,7 @@ from aiohttp import web
 import numpy as np
 from config import Config,allowed_test_call
 from voice import SpeechPipeline,rtp_payload,ulaw_decode,ulaw_encode,stop_requested,quick_voice_reply
+from sales import SalesState,sales_instruction,fast_sales_reply
 
 log=logging.getLogger('zvonko.phone')
 
@@ -77,6 +78,7 @@ class PhoneCall:
         self.play_task:asyncio.Task|None=None
         self.timeout_task:asyncio.Task|None=None
         self.history:list[dict[str,str]]=[]
+        self.sales=SalesState()
         self.closed=False
 
     async def setup(self):
@@ -105,7 +107,8 @@ class PhoneCall:
             welcome=('Здравствуйте! Это тестовый звонок ИИ-менеджера Звонко. '
                      'Вы сами запросили проверку. Какой вопрос о товаре вам интересен?'
                      if self.mode=='manual-test' else
-                     'Здравствуйте! Я голосовой ИИ-консультант. Чем могу помочь?')
+                     'Здравствуйте! Это Звонко, голосовой ИИ-консультант. '
+                     'Для какого объекта подбираете оборудование?')
             self.play_task=asyncio.create_task(self.say(welcome))
             log.info('Connected live call %s, media port %s',self.channel_id,port)
         except Exception:
@@ -158,6 +161,7 @@ class PhoneCall:
                 await self.say('Понял. Больше не беспокою. Всего доброго.')
                 await self.close(hangup=True)
                 return
+            self.sales.observe(heard)
             self.history.append({'role':'user','content':heard})
             quick=quick_voice_reply(heard)
             if quick:
@@ -166,8 +170,19 @@ class PhoneCall:
                 self.play_task=asyncio.create_task(self.say(quick))
                 await self.play_task
                 return
+            sales_reply=fast_sales_reply(heard,self.sales,self.cfg.sales_offer)
+            if sales_reply:
+                log.info('Fast sales response: stage %s, turn %d',
+                         self.sales.objection or 'qualification',self.sales.turn)
+                self.history.append({'role':'assistant','content':sales_reply})
+                self.play_task=asyncio.create_task(self.say(sales_reply))
+                await self.play_task
+                if self.sales.caller_declined:
+                    await self.close(hangup=True)
+                return
+            instruction=sales_instruction(self.sales,self.cfg.sales_offer,self.cfg.sales_goal)
             llm_started=time.monotonic()
-            llm_task=asyncio.create_task(self.ai.respond(self.history))
+            llm_task=asyncio.create_task(self.ai.respond(self.history,extra_instruction=instruction))
             try:
                 try:
                     reply=await asyncio.wait_for(asyncio.shield(llm_task),timeout=3.0)
@@ -196,27 +211,36 @@ class PhoneCall:
     async def say(self,text:str):
         if self.closed:return
         self.playing=True;self.interrupt.clear()
+        tts_started=time.monotonic()
+        audio_seconds=0.0
+        first_chunk_latency=None
         try:
-            tts_started=time.monotonic()
+            async def playback(phrase:str):
+                nonlocal audio_seconds,first_chunk_latency
+                loop=asyncio.get_running_loop()
+                next_frame_at=None
+                async for pcm in self.ai.stream_synthesize(phrase):
+                    if self.closed or self.interrupt.is_set():break
+                    if first_chunk_latency is None:
+                        first_chunk_latency=time.monotonic()-tts_started
+                    audio_seconds+=len(pcm)/8000
+                    ulaw=ulaw_encode(pcm)
+                    next_frame_at=max(next_frame_at or loop.time(),loop.time())
+                    for offset in range(0,len(ulaw),160):
+                        if self.closed or self.interrupt.is_set():return
+                        frame=ulaw[offset:offset+160]
+                        if len(frame)<160:frame+=b'\\xff'*(160-len(frame))
+                        self.listener.send_audio(frame)
+                        next_frame_at+=0.020
+                        await asyncio.sleep(max(0,next_frame_at-loop.time()))
             try:
-                pcm=await self.ai.synthesize(text)
-            except (KeyError,ValueError) as exc:
-                # An unsupported symbol or phoneme must not terminate the call.
-                log.warning('TTS rejected reply (%s); speaking safe fallback',
-                            type(exc).__name__)
-                pcm=await self.ai.synthesize(
-                    'Извините, не получилось озвучить ответ. Повторите вопрос, пожалуйста.')
-            log.info('Synthesized reply in %.2fs (audio %.2fs)',
-                     time.monotonic()-tts_started,len(pcm)/8000)
-            ulaw=ulaw_encode(pcm)
-            t0=asyncio.get_running_loop().time()
-            for offset in range(0,len(ulaw),160):
-                if self.closed or self.interrupt.is_set():break
-                frame=ulaw[offset:offset+160]
-                if len(frame)<160:frame+=b'\xff'*(160-len(frame))
-                self.listener.send_audio(frame)
-                next_time=t0+((offset//160)+1)*.020
-                await asyncio.sleep(max(0,next_time-asyncio.get_running_loop().time()))
+                await playback(text)
+            except (KeyError,ValueError):
+                log.warning('TTS rejected a word; giving safe fallback instead')
+                if not self.closed and not self.interrupt.is_set():
+                    await playback('Извините, повторите вопрос, пожалуйста.')
+            log.info('Reply played: first audio %.2fs; total audio %.2fs',
+                     first_chunk_latency or 0.,audio_seconds)
         finally:self.playing=False
 
     async def close(self,hangup:bool=False):
