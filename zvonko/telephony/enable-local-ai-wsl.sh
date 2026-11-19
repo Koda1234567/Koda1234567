@@ -11,7 +11,7 @@ ARI=/etc/asterisk/ari.conf
 ENV_FILE="$HOME/.config/zvonko/ai.env"
 MARKER="$HOME/.config/zvonko/local-ai-configured"
 if [[ ! -x .venv/bin/python ]]; then echo 'Python env absent: run install-local-ai-wsl.sh first' >&2; exit 1; fi
-if ! curl --fail --silent --max-time 3 http://127.0.0.1:11434/api/tags >/dev/null; then
+if ! curl --noproxy '*' --fail --silent --max-time 3 http://127.0.0.1:11434/api/tags >/dev/null; then
   echo 'Ollama not running: sudo systemctl start ollama' >&2; exit 1
 fi
 if ! ollama list | grep -Fq 'qwen2.5:1.5b'; then
