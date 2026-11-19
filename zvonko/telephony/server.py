@@ -229,7 +229,7 @@ class PhoneCall:
                     for offset in range(0,len(ulaw),160):
                         if self.closed or self.interrupt.is_set():return
                         frame=ulaw[offset:offset+160]
-                        if len(frame)<160:frame+=b'\\xff'*(160-len(frame))
+                        if len(frame)<160:frame+=b'\xff'*(160-len(frame))
                         self.listener.send_audio(frame)
                         next_frame_at+=0.020
                         await asyncio.sleep(max(0,next_frame_at-loop.time()))
