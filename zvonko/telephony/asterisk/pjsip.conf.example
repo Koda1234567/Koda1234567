@@ -1,0 +1,22 @@
+; Placeholder for a real contracted RF operator's SIP settings.
+; Asterisk must validate peer IP or SIP authentication.
+; Do not publish any SIP credentials or expose an open relay.
+[mytrunk]
+type=endpoint
+transport=transport-udp
+context=zvonko-inbound
+disallow=all
+allow=alaw,ulaw
+aors=mytrunk
+outbound_auth=mytrunk-auth
+from_domain=YOUR_PROVIDER_HOST
+
+[mytrunk]
+type=aor
+contact=sip:YOUR_PROVIDER_HOST
+
+[mytrunk-auth]
+type=auth
+auth_type=userpass
+username=YOUR_SIP_LOGIN
+password=YOUR_SIP_SECRET
