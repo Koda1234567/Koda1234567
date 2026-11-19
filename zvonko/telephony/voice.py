@@ -53,6 +53,68 @@ def rms(pcm:np.ndarray)->float:
     if not pcm.size:return 0
     return float(np.sqrt(np.mean(pcm.astype(np.float32)**2)))
 
+# Vosk's Russian text front-end can raise KeyError on ASCII digits
+# (observed KeyError: '4' during a live call). Speak numbers instead.
+_UNITS=('ноль','один','два','три','четыре','пять','шесть','семь','восемь','девять')
+_TEENS=('десять','одиннадцать','двенадцать','тринадцать','четырнадцать',
+        'пятнадцать','шестнадцать','семнадцать','восемнадцать','девятнадцать')
+_TENS=('','','двадцать','тридцать','сорок','пятьдесят','шестьдесят',
+       'семьдесят','восемьдесят','девяносто')
+_HUNDREDS=('','сто','двести','триста','четыреста','пятьсот','шестьсот',
+           'семьсот','восемьсот','девятьсот')
+
+def _below_thousand(n:int,feminine:bool=False)->str:
+    parts=[]
+    if n>=100:
+        parts.append(_HUNDREDS[n//100])
+        n%=100
+    if 10<=n<=19:
+        parts.append(_TEENS[n-10])
+    else:
+        if n>=20:
+            parts.append(_TENS[n//10])
+        unit=n%10
+        if unit:
+            parts.append(('одна' if feminine else 'один') if unit==1 else
+                         ('две' if feminine else 'два') if unit==2 else _UNITS[unit])
+    return ' '.join(parts)
+
+def _spoken_number(value:str)->str:
+    # Phone numbers and long IDs should be spelled digit by digit.
+    if (len(value)>6 or (len(value)>1 and value.startswith('0'))):
+        return ' '.join(_UNITS[int(d)] for d in value)
+    n=int(value)
+    if n==0:return _UNITS[0]
+    if n<1000:return _below_thousand(n)
+    thousands,rest=divmod(n,1000)
+    ending=('тысяч' if 11<=thousands%100<=14 or thousands%10 not in (1,2,3,4)
+            else 'тысяча' if thousands%10==1 else 'тысячи')
+    prefix=_below_thousand(thousands,feminine=True)+' '+ending
+    return (prefix+' '+_below_thousand(rest)) if rest else prefix
+
+def normalize_tts_text(text:str)->str:
+    """Convert model output to a safe, speakable Russian sentence for Vosk TTS."""
+    text=re.sub(r'https?://\\S+',' ',text)
+    text=text.replace('₽',' рублей ').replace('№',' номер ').replace('%',' процентов ')
+    text=re.sub(r'\\d+',lambda m:_spoken_number(m.group()),text)
+    # Drop markdown, emoji, math symbols that the Russian phoneme map may not know.
+    text=re.sub(r'[^а-яёА-ЯЁa-zA-Z\\s.,!?;:()\\-—]', ' ',text)
+    return re.sub(r'\\s+',' ',text).strip() or 'Повторите, пожалуйста.'
+
+def concise_voice_reply(text:str,limit:int=135)->str:
+    """Keep natural phone replies short so the caller is not waiting 13 seconds."""
+    text=re.sub(r'\\s+',' ',text).strip()
+    if len(text)<=limit:return text
+    sentences=re.split(r'(?<=[.!?])\\s+',text)
+    result=''
+    for sentence in sentences:
+        candidate=(result+' '+sentence).strip()
+        if len(candidate)>limit:break
+        result=candidate
+    if result:return result
+    shortened=text[:limit].rsplit(' ',1)[0].rstrip(' ,;:-')
+    return shortened+'.' if shortened else text[:limit].rstrip()+'.'
+
 class SpeechPipeline:
     def __init__(self,cfg:Any,http:aiohttp.ClientSession):
         self.cfg=cfg;self.http=http
@@ -87,6 +149,7 @@ class SpeechPipeline:
         system=('Ты русскоязычный ИИ-консультант, разговариваешь с человеком ПО ТЕЛЕФОНУ. '
           'Представься ИИ в самом начале. Общайся тепло и естественно: короткие '
           'фразы и один вопрос за раз, никаких длинных списков. '
+          'Отвечай не более чем двумя короткими предложениями, примерно до двадцати слов. '
           'Разговор по входящему запросу либо ручному тесту на личный номер. '
           'Не придумывай цены или гарантии. Не собирай чувствительные данные. '
           'При отказе не уговаривай, попрощайся. '
@@ -101,14 +164,14 @@ class SpeechPipeline:
             data=await r.json()
         reply=data.get('message',{}).get('content','').strip()
         if not reply:raise RuntimeError('LLM returned empty response')
-        return reply[:500]
+        return concise_voice_reply(reply)
 
     async def synthesize(self,text:str)->np.ndarray:
         if self._tts is None:raise RuntimeError('Vosk TTS not loaded')
         def run():
             with NamedTemporaryFile(suffix='.wav',delete=False) as f:path=f.name
             try:
-                self._tts.synth(text,path,speaker_id=self.cfg.tts_speaker)
+                self._tts.synth(normalize_tts_text(text),path,speaker_id=self.cfg.tts_speaker)
                 with wave.open(path,'rb') as wav:
                     rate=wav.getframerate()
                     if wav.getnchannels()!=1 or wav.getsampwidth()!=2:
