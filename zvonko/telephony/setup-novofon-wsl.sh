@@ -7,15 +7,17 @@ LOGIN=0157367
 MAIN=/etc/asterisk/pjsip.conf
 FRAGMENT=/etc/asterisk/pjsip_zvonko.conf
 if [[ ! -f "$MAIN" ]]; then echo 'pjsip.conf not found' >&2; exit 1; fi
-if ! grep -q '^\[zvonko-udp\]' "$MAIN"; then
+# Asterisk config is root/asterisk-readable, not readable by an ordinary WSL user.
+# Elevate before checking it; no SIP password is needed at this point.
+sudo -v
+if ! sudo grep -q '^\[zvonko-udp\]' "$MAIN"; then
   echo 'Existing [zvonko-udp] transport missing. Do not proceed.' >&2
   exit 1
 fi
-if [[ -e "$FRAGMENT" ]] || grep -Fq '#include pjsip_zvonko.conf' "$MAIN"; then
+if [[ -e "$FRAGMENT" ]] || sudo grep -Fq '#include pjsip_zvonko.conf' "$MAIN"; then
   echo 'A Novofon fragment is already configured; refusing to overwrite.' >&2
   exit 1
 fi
-sudo -v
 read -r -s -p 'Введите SIP-пароль робота 0157367 (не старой линии): ' SIP_PASSWORD
 printf '\n'
 if [[ -z "$SIP_PASSWORD" || "$SIP_PASSWORD" == *';'* || "$SIP_PASSWORD" == *'#'* ]]; then
