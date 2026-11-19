@@ -99,7 +99,9 @@ def normalize_tts_text(text:str)->str:
     text=re.sub(r'\d+',lambda m:_spoken_number(m.group()),text)
     # Drop markdown, emoji, math symbols that the Russian phoneme map may not know.
     text=re.sub(r'[^а-яёА-ЯЁa-zA-Z\s.,!?;:()\-—]', ' ',text)
-    return re.sub(r'\s+',' ',text).strip() or 'Повторите, пожалуйста.'
+    text=re.sub(r'\s+',' ',text).strip()
+    text=re.sub(r'\s+([,.!?;:])',r'\1',text)
+    return text or 'Повторите, пожалуйста.'
 
 def concise_voice_reply(text:str,limit:int=135)->str:
     """Keep natural phone replies short so the caller is not waiting 13 seconds."""
