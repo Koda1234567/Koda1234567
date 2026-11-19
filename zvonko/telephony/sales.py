@@ -137,7 +137,7 @@ def fast_sales_reply(heard: str, state: SalesState, offer: str) -> str | None:
     if _WHAT.search(heard):
         return f'Я Звонко, голосовой ИИ-консультант по теме «{offer[:65]}». Подскажите, какая у вас задача?'
     if _CLEANING.search(heard):
-        return 'Понимаю, у вас уже работает клининговая компания. Вы рассматриваете собственную технику или пока неактуально?'
+        return 'Понял, уборкой занимается подрядчик. Бывают проблемы с качеством или стоимостью уборки?'
     if _BUDGET.search(heard):
         if state.area_m2:
             return 'Понимаю, бюджет важен. А сейчас убираете вручную или машиной?'
