@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import re
 
-_DECLINE = re.compile(r'\b(не\s+интересно|не\s+нужно|ничего\s+не\s+надо|откажусь|не\s+актуально|не\s+звоните|до\s+свидания)\b', re.I)
+_DECLINE = re.compile(r'\b(не\s+интересно|неинтересно|не\s+нужно|ничего\s+не\s+надо|откажусь|не\s+актуально|не\s+звоните|до\s+свидания)\b', re.I)
 _WHAT = re.compile(r'\b(кто\s+вы|что\s+предлагаете|что\s+за\s+компания|чем\s+занимаетесь)\b', re.I)
 _PRICE = re.compile(r'\b(цена|цену|стоимость|сколько\s+стоит|прайс|почём)\b', re.I)
 _CLEANING = re.compile(r'\b(клининг|подрядчик|убирает\s+подрядчик|на\s+аутсорсе)\b', re.I)
@@ -16,6 +16,60 @@ _CHINA = re.compile(r'\b(китайск\w*|из\s+китая|китайская)
 _SITE = re.compile(r'\b(склад\w*|цех\w*|паркинг\w*|производств\w*|магазин\w*|торгов\w*\s+зал\w*|офис\w*)\b', re.I)
 _FLOOR = re.compile(r'\b(плитк\w*|бетон\w*|керамогранит\w*|наливн\w*\s+пол\w*)\b', re.I)
 _AREA = re.compile(r'(\d[\d\s]{0,9})\s*(?:м2|м²|квадратн|кв\.?\s?м)', re.I)
+
+# Telephone recognition often renders 2500 as "две тысячи пятьсот".
+_SPOKEN_UNIT = {
+    'один':1, 'одна':1, 'одно':1, 'два':2, 'две':2,
+    'три':3, 'четыре':4, 'пять':5, 'шесть':6, 'семь':7,
+    'восемь':8, 'девять':9, 'десять':10, 'одиннадцать':11,
+    'двенадцать':12, 'тринадцать':13, 'четырнадцать':14,
+    'пятнадцать':15, 'шестнадцать':16, 'семнадцать':17,
+    'восемнадцать':18, 'девятнадцать':19,
+    'двадцать':20, 'тридцать':30, 'сорок':40, 'пятьдесят':50,
+    'шестьдесят':60, 'семьдесят':70, 'восемьдесят':80, 'девяносто':90,
+    'сто':100, 'двести':200, 'триста':300, 'четыреста':400,
+    'пятьсот':500, 'шестьсот':600, 'семьсот':700,
+    'восемьсот':800, 'девятьсот':900,
+    'тысяча':1000, 'тысячи':1000, 'тысяч':1000,
+    'полторы':1500, 'полтора':1500,
+}
+
+def parse_spoken_area(heard: str) -> int | None:
+    """Best-effort area parser, without extracting phone numbers or identities."""
+    matched = _AREA.search(heard)
+    if matched:
+        digits = re.sub(r'\D', '', matched.group(1))
+        if digits:
+            n = int(digits)
+            return n if 1 <= n <= 10000000 else None
+    # Only consider words preceding an explicit measurement unit.
+    unit = re.search(r'\b(?:квадрат\w*|метр\w*\s+квадрат\w*|кв\.?\s*м)\b',
+                     heard, re.I)
+    if not unit:
+        return None
+    preceding = re.findall(r'[а-яё]+', heard[:unit.start()].casefold())
+    parts = []
+    for word in reversed(preceding[-7:]):
+        if word not in _SPOKEN_UNIT:
+            break
+        parts.append(word)
+    parts.reverse()
+    if not parts:
+        return None
+    total = 0
+    subtotal = 0
+    for word in parts:
+        value = _SPOKEN_UNIT[word]
+        if value == 1000:
+            total += max(subtotal, 1) * 1000
+            subtotal = 0
+        elif value == 1500:
+            total += 1500
+        else:
+            subtotal += value
+    n = total + subtotal
+    return n if 1 <= n <= 10000000 else None
+
 
 @dataclass
 class SalesState:
@@ -30,13 +84,9 @@ class SalesState:
 
     def observe(self, heard: str) -> None:
         self.turn += 1
-        m = _AREA.search(heard)
-        if m:
-            digits = re.sub(r'\D', '', m.group(1))
-            if digits:
-                area = int(digits)
-                if 1 <= area <= 10000000:
-                    self.area_m2 = area
+        area = parse_spoken_area(heard)
+        if area is not None:
+            self.area_m2 = area
         if _SITE.search(heard) and not self.site_type:
             self.site_type = _SITE.search(heard).group(0).casefold()
         if _FLOOR.search(heard) and not self.floor_type:
@@ -95,7 +145,7 @@ def fast_sales_reply(heard: str, state: SalesState, offer: str) -> str | None:
         return 'Цена зависит от задачи и модели. Какая примерно площадь помещения?'
     if state.requested_handoff and re.search(r'\b(свяжите|менеджер|перезвоните)\b', heard, re.I):
         return 'Сейчас я не могу соединить с менеджером. Могу помочь сформулировать запрос для него.'
-    if state.area_m2 and _AREA.search(heard) and not state.floor_type:
+    if state.area_m2 and parse_spoken_area(heard) and not state.floor_type:
         return 'Понял площадь. А какое покрытие пола на объекте?'
     if state.site_type and _SITE.search(heard) and not state.area_m2:
         return 'Понял тип объекта. Какая примерно площадь уборки?'
