@@ -264,6 +264,7 @@ class PhoneServer:
     def __init__(self,cfg:Config):
         self.cfg=cfg;self.http=None;self.ari=None;self.ai=None
         self.calls:dict[str,PhoneCall]={}
+        self.call_class=PhoneCall # overridable by isolated v3, old route unchanged
         self.connected=False
         self.last_test_call=0.
         self.event_task=None
@@ -311,7 +312,7 @@ class PhoneServer:
             if mode not in ('inbound','manual-test'):
                 with contextlib.suppress(Exception):await self.ari.call('DELETE','/channels/'+ch)
                 return
-            call=PhoneCall(self,ch,mode)
+            call=self.call_class(self,ch,mode)
             self.calls[ch]=call
             if mode=='inbound':
                 with contextlib.suppress(Exception):
