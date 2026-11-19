@@ -1,22 +1,57 @@
-; Placeholder for a real contracted RF operator's SIP settings.
-; Asterisk must validate peer IP or SIP authentication.
-; Do not publish any SIP credentials or expose an open relay.
+; Novofon SIP account -> Zvonko AI gateway (Asterisk PJSIP)
+; Based on https://novofon.com/instructions/calls/asterisk-pjsip/
+; Replace every REPLACE_* placeholder privately ON THE SERVER.
+; Do NOT commit this file with any real password or identifiers.
+;
+; IMPORTANT: Register a separate dedicated Novofon SIP employee account for Zvonko.
+; Do not move the currently used softphone account until first tests pass.
+
+[udp-transport]
+type=transport
+protocol=udp
+bind=0.0.0.0:5060
+; If server behind NAT, set external_signaling_address / external_media_address
+; and local_net according to Asterisk documentation.
+
+[novofon-registration]
+type=registration
+transport=udp-transport
+outbound_auth=novofon-auth
+server_uri=sip:sip.novofon.ru:5060
+client_uri=sip:REPLACE_SIP_LOGIN@sip.novofon.ru
+retry_interval=60
+expiration=120
+contact_user=REPLACE_SIP_LOGIN
+
+[novofon-auth]
+type=auth
+auth_type=userpass
+username=REPLACE_SIP_LOGIN
+password=REPLACE_SIP_PASSWORD
+
+[novofon-aor]
+type=aor
+contact=sip:sip.novofon.ru:5060
+
 [mytrunk]
 type=endpoint
-transport=transport-udp
+transport=udp-transport
 context=zvonko-inbound
 disallow=all
 allow=alaw,ulaw
-aors=mytrunk
-outbound_auth=mytrunk-auth
-from_domain=YOUR_PROVIDER_HOST
+outbound_auth=novofon-auth
+aors=novofon-aor
+from_user=REPLACE_SIP_LOGIN
+from_domain=sip.novofon.ru
+direct_media=no
+rtp_symmetric=yes
+force_rport=yes
+rewrite_contact=yes
 
-[mytrunk]
-type=aor
-contact=sip:YOUR_PROVIDER_HOST
+[novofon-identify]
+type=identify
+endpoint=mytrunk
+match=sip.novofon.ru
 
-[mytrunk-auth]
-type=auth
-auth_type=userpass
-username=YOUR_SIP_LOGIN
-password=YOUR_SIP_SECRET
+; AI test outgoing endpoint: PJSIP/7XXXXXXXXXX@mytrunk
+; Only own verified phone numbers allowed by application's manual-test API.
