@@ -24,3 +24,8 @@ jobs:
         run: |
           python -m compileall -q zvonko/telephony
           python -m pytest -q zvonko/telephony/tests
+      - name: Check deployment scripts syntax
+        run: |
+          bash -n zvonko/telephony/install-ubuntu.sh
+          bash -n zvonko/telephony/configure-novofon.sh
+          bash -n zvonko/telephony/check-server.sh
