@@ -15,7 +15,7 @@ _BUDGET = re.compile(r'\b(нет\s+денег|нет\s+бюджета|дорог
 _CHINA = re.compile(r'\b(китайск\w*|из\s+китая|китайская)\b', re.I)
 _SITE = re.compile(r'\b(склад\w*|цех\w*|паркинг\w*|производств\w*|магазин\w*|торгов\w*\s+зал\w*|офис\w*)\b', re.I)
 _FLOOR = re.compile(r'\b(плитк\w*|бетон\w*|керамогранит\w*|наливн\w*\s+пол\w*)\b', re.I)
-_AREA = re.compile(r'(\d[\d\s]{0,9})\s*(?:м2|м²|квадратн|кв\.?\s?м)', re.I)
+_AREA = re.compile(r'(\d[\d\s]{0,9})\s*(?:м2|м²|квадрат\w*|кв\.?\s?м)', re.I)
 
 # Telephone recognition often renders 2500 as "две тысячи пятьсот".
 _SPOKEN_UNIT = {
