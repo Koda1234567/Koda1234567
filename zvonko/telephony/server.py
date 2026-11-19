@@ -10,7 +10,7 @@ import aiohttp
 from aiohttp import web
 import numpy as np
 from config import Config,allowed_test_call
-from voice import SpeechPipeline,rtp_payload,ulaw_decode,ulaw_encode,stop_requested
+from voice import SpeechPipeline,rtp_payload,ulaw_decode,ulaw_encode,stop_requested,quick_voice_reply
 
 log=logging.getLogger('zvonko.phone')
 
@@ -147,15 +147,41 @@ class PhoneCall:
             if self.play_task and not self.play_task.done():
                 self.interrupt.set()
                 await self.play_task
+            stt_started=time.monotonic()
             heard=await self.ai.transcribe(samples)
-            if not heard:return
-            log.info('Recognized caller utterance (length=%d)',len(heard))
+            if not heard:
+                log.info('No speech recognized (STT %.2fs)',time.monotonic()-stt_started)
+                return
+            log.info('Recognized caller utterance (length=%d, STT %.2fs)',
+                     len(heard),time.monotonic()-stt_started)
             if stop_requested(heard):
                 await self.say('Понял. Больше не беспокою. Всего доброго.')
                 await self.close(hangup=True)
                 return
             self.history.append({'role':'user','content':heard})
-            reply=await self.ai.respond(self.history)
+            quick=quick_voice_reply(heard)
+            if quick:
+                log.info('Instant hearing/greeting response without LLM')
+                self.history.append({'role':'assistant','content':quick})
+                self.play_task=asyncio.create_task(self.say(quick))
+                await self.play_task
+                return
+            llm_started=time.monotonic()
+            llm_task=asyncio.create_task(self.ai.respond(self.history))
+            try:
+                try:
+                    reply=await asyncio.wait_for(asyncio.shield(llm_task),timeout=3.0)
+                except asyncio.TimeoutError:
+                    log.info('AI generation >3s; giving audible waiting cue')
+                    if not self.closed:
+                        await self.say('Одну секунду, я думаю.')
+                    reply=await asyncio.wait_for(llm_task,timeout=35.0)
+            finally:
+                if not llm_task.done():
+                    llm_task.cancel()
+            log.info('AI reply ready in %.2fs (length=%d)',
+                     time.monotonic()-llm_started,len(reply))
+            if self.closed:return
             self.history.append({'role':'assistant','content':reply})
             self.play_task=asyncio.create_task(self.say(reply))
             await self.play_task
@@ -171,7 +197,10 @@ class PhoneCall:
         if self.closed:return
         self.playing=True;self.interrupt.clear()
         try:
+            tts_started=time.monotonic()
             pcm=await self.ai.synthesize(text)
+            log.info('Synthesized reply in %.2fs (audio %.2fs)',
+                     time.monotonic()-tts_started,len(pcm)/8000)
             ulaw=ulaw_encode(pcm)
             t0=asyncio.get_running_loop().time()
             for offset in range(0,len(ulaw),160):
