@@ -58,13 +58,18 @@ def parse_spoken_area(heard: str) -> int | None:
         return None
     total = 0
     subtotal = 0
+    skip_scale = False
     for word in parts:
         value = _SPOKEN_UNIT[word]
-        if value == 1000:
+        if value == 1500:
+            total += 1500
+            skip_scale = True  # "полторы тысячи" must not add another 1000
+        elif value == 1000:
+            if skip_scale:
+                skip_scale = False
+                continue
             total += max(subtotal, 1) * 1000
             subtotal = 0
-        elif value == 1500:
-            total += 1500
         else:
             subtotal += value
     n = total + subtotal
