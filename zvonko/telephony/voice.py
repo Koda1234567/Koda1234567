@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import wave
 import re
+import threading
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
@@ -122,6 +123,7 @@ class SpeechPipeline:
         self.cfg=cfg;self.http=http
         self._whisper=None;self._vad=None;self._tts=None
         self._piper=None;self._piper_config=None
+        self._piper_lock=threading.Lock()
 
     def load_models(self):
         from faster_whisper import WhisperModel
@@ -215,16 +217,17 @@ class SpeechPipeline:
         def produce():
             from math import gcd
             try:
-                for chunk in self._piper.synthesize(
-                        normalize_tts_text(text),syn_config=self._piper_config):
-                    if chunk.sample_channels != 1 or chunk.sample_width != 2:
-                        raise RuntimeError('Piper must output mono PCM16')
-                    pcm=chunk.audio_int16_array
-                    g=gcd(chunk.sample_rate,8000)
-                    samples=np.clip(resample_poly(pcm.astype(np.float32),
-                                  8000//g,chunk.sample_rate//g),
-                                  -32768,32767).astype(np.int16)
-                    loop.call_soon_threadsafe(queue.put_nowait,samples)
+                with self._piper_lock:
+                    for chunk in self._piper.synthesize(
+                            normalize_tts_text(text),syn_config=self._piper_config):
+                        if chunk.sample_channels != 1 or chunk.sample_width != 2:
+                            raise RuntimeError('Piper must output mono PCM16')
+                        pcm=chunk.audio_int16_array
+                        g=gcd(chunk.sample_rate,8000)
+                        samples=np.clip(resample_poly(pcm.astype(np.float32),
+                                      8000//g,chunk.sample_rate//g),
+                                      -32768,32767).astype(np.int16)
+                        loop.call_soon_threadsafe(queue.put_nowait,samples)
             except Exception as exc:
                 loop.call_soon_threadsafe(queue.put_nowait,exc)
             finally:
