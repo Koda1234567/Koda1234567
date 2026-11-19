@@ -272,7 +272,7 @@ class PhoneServer:
 
     async def health(self,request:web.Request)->web.Response:
         return web.json_response({'asterisk':self.connected,'activeCalls':len(self.calls),
-            'realSip':True,'bulkDialer':False,'outboundTest':self.cfg.enable_test_outbound})
+            'sipRegistration':'not_verified','bulkDialer':False,'outboundTest':self.cfg.enable_test_outbound})
 
     async def manual_test(self,request:web.Request)->web.Response:
         if not self.authorized(request):raise web.HTTPUnauthorized()
