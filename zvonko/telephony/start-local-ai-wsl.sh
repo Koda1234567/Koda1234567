@@ -11,7 +11,7 @@ fi
 if [[ ! -x .venv/bin/python ]]; then
  echo 'Python venv missing: run install-local-ai-wsl.sh first' >&2; exit 1
 fi
-if ! curl --fail --silent --max-time 3 http://127.0.0.1:11434/api/tags >/dev/null; then
+if ! curl --noproxy '*' --fail --silent --max-time 3 http://127.0.0.1:11434/api/tags >/dev/null; then
  echo 'Ollama offline: sudo systemctl start ollama' >&2; exit 1
 fi
 set -a
