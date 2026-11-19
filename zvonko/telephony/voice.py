@@ -94,18 +94,18 @@ def _spoken_number(value:str)->str:
 
 def normalize_tts_text(text:str)->str:
     """Convert model output to a safe, speakable Russian sentence for Vosk TTS."""
-    text=re.sub(r'https?://\\S+',' ',text)
+    text=re.sub(r'https?://\S+',' ',text)
     text=text.replace('₽',' рублей ').replace('№',' номер ').replace('%',' процентов ')
-    text=re.sub(r'\\d+',lambda m:_spoken_number(m.group()),text)
+    text=re.sub(r'\d+',lambda m:_spoken_number(m.group()),text)
     # Drop markdown, emoji, math symbols that the Russian phoneme map may not know.
-    text=re.sub(r'[^а-яёА-ЯЁa-zA-Z\\s.,!?;:()\\-—]', ' ',text)
-    return re.sub(r'\\s+',' ',text).strip() or 'Повторите, пожалуйста.'
+    text=re.sub(r'[^а-яёА-ЯЁa-zA-Z\s.,!?;:()\-—]', ' ',text)
+    return re.sub(r'\s+',' ',text).strip() or 'Повторите, пожалуйста.'
 
 def concise_voice_reply(text:str,limit:int=135)->str:
     """Keep natural phone replies short so the caller is not waiting 13 seconds."""
-    text=re.sub(r'\\s+',' ',text).strip()
+    text=re.sub(r'\s+',' ',text).strip()
     if len(text)<=limit:return text
-    sentences=re.split(r'(?<=[.!?])\\s+',text)
+    sentences=re.split(r'(?<=[.!?])\s+',text)
     result=''
     for sentence in sentences:
         candidate=(result+' '+sentence).strip()
