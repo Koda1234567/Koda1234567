@@ -9,7 +9,7 @@ if [[ ! -f requirements.txt || ! -f voice.py ]]; then
 fi
 echo '=== Stage 1: local Python runtime (Ubuntu 24.04 / WSL2) ==='
 sudo apt-get update
-sudo apt-get install -y --no-install-recommends python3-venv python3-pip curl ffmpeg libsndfile1 ca-certificates
+sudo apt-get install -y --no-install-recommends python3-venv python3-pip curl ffmpeg libsndfile1 ca-certificates zstd
 if [[ ! -x .venv/bin/python ]]; then
  python3 -m venv .venv
 fi
