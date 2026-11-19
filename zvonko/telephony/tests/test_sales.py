@@ -2,44 +2,49 @@ import os,sys
 sys.path.insert(0,os.path.dirname(os.path.dirname(__file__)))
 from sales import SalesState,sales_instruction,fast_sales_reply
 
-OFFER='поломоечные машины VMD'
+OFFER='профессиональные поломоечные машины VMD'
 
-def test_qualifies_area_without_inventing_more_details():
-    state=SalesState()
-    state.observe('Для склада около 1200 м²')
-    assert state.area_m2==1200
-    assert '1200 кв. м' in sales_instruction(state,OFFER,'консультация')
-    assert state.turn==1
+def test_sales_observe_location_floor_area():
+    s=SalesState()
+    s.observe('У нас склад 2500 кв. м, бетонный пол')
+    assert s.area_m2 == 2500
+    assert 'склад' in s.site_type
+    assert 'бетон' in s.floor_type
+    assert s.turn == 1
+    prompt=sales_instruction(s,OFFER,'подбор')
+    assert '2500' in prompt and 'склад' in prompt and 'бетон' in prompt
+    assert 'Никаких выдуманных цен' in prompt
 
-def test_price_reply_asks_for_task_instead_of_inventing_quote():
-    state=SalesState()
-    state.observe('А сколько стоит?')
-    reply=fast_sales_reply('А сколько стоит?',state,OFFER)
-    assert 'зависит' in reply.lower()
-    assert 'площад' in reply.lower()
-    assert '₽' not in reply
+def test_sales_objections_are_short_and_respectful():
+    s=SalesState()
+    s.observe('У нас уборку делает подрядчик, ничего не покупаем')
+    assert s.objection == 'outsourced_cleaning'
+    assert 'подряд' in fast_sales_reply('У нас клининг',s,OFFER).lower()
+    s.observe('Это дорого, у нас нет бюджета')
+    assert s.objection == 'budget'
+    assert 'бюджет' in fast_sales_reply('Дорого',s,OFFER).lower()
+    s.observe('Не доверяю китайской технике')
+    assert s.objection == 'origin_or_reliability'
+    assert 'сервис' in fast_sales_reply('китайская',s,OFFER).lower()
 
-def test_outsourced_cleaning_objection_is_respected():
-    state=SalesState()
-    state.observe('У нас клининг, своя техника не нужна')
-    reply=fast_sales_reply('У нас клининг',state,OFFER)
-    assert 'клининг' in reply
-    assert state.objection=='outsourced_cleaning'
+def test_no_price_invention_and_qualified_lead():
+    s=SalesState()
+    s.observe('Какая у вас цена?')
+    response=fast_sales_reply('Какая у вас цена?',s,OFFER)
+    assert 'площад' in response.lower()
+    assert not any(x.isdigit() for x in response)
+    s.observe('500 квадратных метров')
+    assert s.area_m2==500
+    assert 'покрыти' in fast_sales_reply('500 квадратных метров',s,OFFER).lower()
 
-def test_decline_not_followed_by_more_sales():
-    state=SalesState()
-    state.observe('Не интересно. Спасибо')
-    assert state.caller_declined
-    reply=fast_sales_reply('Не интересно. Спасибо',state,OFFER)
-    assert 'всего доброго' in reply.lower()
+def test_decline_no_pressure():
+    s=SalesState()
+    s.observe('Мне не интересно, до свидания')
+    assert s.caller_declined
+    assert 'всего доброго' in fast_sales_reply('Мне не интересно',s,OFFER).lower()
 
-def test_handoff_is_request_not_fake_booking():
-    state=SalesState()
-    state.observe('Пусть менеджер перезвонит')
-    assert state.requested_handoff
-    prompt=sales_instruction(state,OFFER,'консультация')
-    assert 'Не заявляй, что встреча, заявка' in prompt
-
-def test_offer_context_is_configurable():
-    state=SalesState()
-    assert 'оборудование' in sales_instruction(state,'оборудование','согласовать консультацию')
+def test_handoff_does_not_claim_booking():
+    s=SalesState()
+    s.observe('Свяжите меня с менеджером')
+    assert s.requested_handoff
+    assert 'не заявляй' in sales_instruction(s,OFFER,'подбор').lower()
