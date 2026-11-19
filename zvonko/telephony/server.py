@@ -108,7 +108,7 @@ class PhoneCall:
                      'Вы сами запросили проверку. Какой вопрос о товаре вам интересен?'
                      if self.mode=='manual-test' else
                      'Здравствуйте! Это Звонко, голосовой ИИ-консультант. '
-                     'Для какого объекта подбираете оборудование?')
+                     'Подскажите, какая у вас задача?')
             self.play_task=asyncio.create_task(self.say(welcome))
             log.info('Connected live call %s, media port %s',self.channel_id,port)
         except Exception:
@@ -136,7 +136,7 @@ class PhoneCall:
             if not self.frames and self.voice_frames>=3:
                 self.frames=list(self.pre_roll)
             elif self.frames:self.frames.append(pcm)
-            if self.frames and ((self.silent_frames>=34 and len(self.frames)>=22)
+            if self.frames and ((self.silent_frames>=26 and len(self.frames)>=22)
                                 or len(self.frames)>=900):
                 if self.turn_task is None or self.turn_task.done():
                     samples=np.concatenate(self.frames)
