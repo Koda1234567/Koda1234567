@@ -24,6 +24,11 @@ class Config:
     whisper_model:str=field(default_factory=lambda:env('WHISPER_MODEL','small'))
     whisper_device:str=field(default_factory=lambda:env('WHISPER_DEVICE','cpu'))
     whisper_compute_type:str=field(default_factory=lambda:env('WHISPER_COMPUTE_TYPE','int8'))
+    tts_engine:str=field(default_factory=lambda:env('TTS_ENGINE','vosk').strip().lower())
+    piper_voice_path:str=field(default_factory=lambda:env('PIPER_VOICE_PATH',os.path.expanduser('~/.local/share/zvonko/voices/ru_RU-dmitri-medium.onnx')))
+    piper_length_scale:float=field(default_factory=lambda:float(env('PIPER_LENGTH_SCALE','0.95')))
+    sales_offer:str=field(default_factory=lambda:env('SALES_OFFER','подбор профессиональной уборочной техники'))
+    sales_goal:str=field(default_factory=lambda:env('SALES_GOAL','выяснить задачу и предложить консультацию живого специалиста'))
     tts_model:str=field(default_factory=lambda:env('TTS_MODEL','vosk-model-tts-ru-0.9-multi'))
     tts_speaker:int=field(default_factory=lambda:int(env('TTS_SPEAKER','2')))
     product_info:str=field(default_factory=lambda:env('PRODUCT_INFO','Подбор профессиональной уборочной техники по запросу.'))
@@ -38,6 +43,10 @@ class Config:
             raise ValueError('Admin API must bind to loopback')
         if not re.fullmatch('[a-zA-Z0-9_-]+',self.trunk_endpoint):
             raise ValueError('Invalid SIP trunk')
+        if self.tts_engine not in ('piper','vosk'):
+            raise ValueError('TTS_ENGINE must be piper or vosk')
+        if not 0.75 <= self.piper_length_scale <= 1.25:
+            raise ValueError('PIPER_LENGTH_SCALE must be between 0.75 and 1.25')
         if not 0<=self.vad_aggressiveness<=3:
             raise ValueError('Invalid VAD setting')
         if self.enable_test_outbound:
