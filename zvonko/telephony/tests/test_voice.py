@@ -3,7 +3,7 @@ sys.path.insert(0,os.path.dirname(os.path.dirname(__file__)))
 from dataclasses import replace
 import numpy as np
 from config import Config,allowed_test_call
-from voice import ulaw_encode,ulaw_decode,rtp_payload,stop_requested,quick_voice_reply
+from voice import ulaw_encode,ulaw_decode,rtp_payload,stop_requested,quick_voice_reply,normalize_tts_text,concise_voice_reply
 
 def test_ulaw_roundtrip():
     x=np.array([-32000,-20000,-5000,-100,-1,0,1,100,5000,20000,32000],dtype=np.int16)
@@ -37,3 +37,20 @@ def test_quick_voice_reply_hello_and_hearing():
     assert quick_voice_reply('Привет') is not None
     assert quick_voice_reply('Сколько стоит робот для склада?') is None
     assert quick_voice_reply('Здравствуйте, расскажите мне о подборе и обслуживании уборочного оборудования') is None
+
+def test_vosk_tts_digits_become_russian_words():
+    assert normalize_tts_text('У нас 4 модели.')=='У нас четыре модели.'
+    assert normalize_tts_text('Стоимость 2026 ₽.')=='Стоимость две тысячи двадцать шесть рублей.'
+    assert normalize_tts_text('Вариант 0157367')=='Вариант ноль один пять семь три шесть семь'
+    assert normalize_tts_text('Скидка 15%')=='Скидка пятнадцать процентов'
+    assert not any(x.isdigit() for x in normalize_tts_text('100 и 200, 4 штуки'))
+    assert normalize_tts_text('В наличии 1 робот и 2 комплекта.')=='В наличии один робот и два комплекта.'
+
+def test_voice_response_shortened_naturally():
+    text=('В наличии есть несколько вариантов оборудования. '
+          'Они подходят для разных площадей и задач. '
+          'Мы можем вместе подобрать подходящую модель.')
+    short=concise_voice_reply(text,limit=65)
+    assert short=='В наличии есть несколько вариантов оборудования.'
+    assert len(concise_voice_reply('Очень длинное предложение '*20,limit=110))<=110
+    assert concise_voice_reply('Здравствуйте!')=='Здравствуйте!'
