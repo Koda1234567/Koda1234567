@@ -33,3 +33,4 @@ jobs:
           bash -n zvonko/telephony/install-local-ai-wsl.sh
           bash -n zvonko/telephony/enable-local-ai-wsl.sh
           bash -n zvonko/telephony/start-local-ai-wsl.sh
+          bash -n zvonko/telephony/install-piper-wsl.sh
