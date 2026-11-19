@@ -4,6 +4,7 @@ Runs on a server in Russia. No browser synthetic voice or recorded audio.
 from __future__ import annotations
 import asyncio
 import wave
+import re
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
@@ -93,7 +94,7 @@ class SpeechPipeline:
           'Вот проверенные сведения о продукте: '+self.cfg.product_info[:3500])
         payload={'model':self.cfg.ollama_model,
                  'messages':[{'role':'system','content':system}]+history[-12:],
-                 'stream':False,'options':{'temperature':0.55,'num_predict':125}}
+                 'stream':False,'options':{'temperature':0.55,'num_predict':64,'num_ctx':2048}}
         async with self.http.post(self.cfg.ollama_url.rstrip('/')+'/api/chat',
                 json=payload,timeout=aiohttp.ClientTimeout(total=45)) as r:
             r.raise_for_status()
@@ -126,3 +127,18 @@ def stop_requested(text:str)->bool:
         'не звоните','больше не звон','не беспокойте',
         'не надо звон','удалите мой номер','до свидания',
         'прощайте','отказываюсь'))
+
+
+def quick_voice_reply(heard:str)->str|None:
+    """Offline responses to simple audio checks, without waiting for the LLM.
+
+    Use only for explicit short greetings/audio checks. Longer messages go to AI.
+    Avoid logging or storing the caller's actual words.
+    """
+    words=set(re.findall(r'[а-яёa-z]+',heard.casefold()))
+    if len(words)>9:return None
+    if words & {'слышно','слышите','алло'}:
+        return 'Да, я вас слышу! Я Звонко, голосовой ИИ. Чем могу помочь?'
+    if words & {'привет','здравствуйте'} and len(words)<=5:
+        return 'Здравствуйте! Я на связи. Что вас интересует?'
+    return None
