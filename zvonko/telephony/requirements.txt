@@ -1,0 +1,6 @@
+aiohttp>=3.10,<4
+numpy>=1.26,<3
+scipy>=1.11,<2
+faster-whisper>=1.1,<2
+webrtcvad-wheels>=2.0.11,<3
+vosk-tts>=0.3.60,<1
