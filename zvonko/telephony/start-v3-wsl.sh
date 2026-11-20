@@ -14,7 +14,21 @@ fi
 set -a
 source "$ENV_FILE"
 set +a
-export OLLAMA_MODEL_V3="$(printenv OLLAMA_MODEL_V3 || echo qwen3.5:4b)"
+# A small local brain is preferable for live telephone latency.
+# Only select models that are actually installed; never download on startup.
+if [[ -z "${OLLAMA_MODEL_V3:-}" ]]; then
+  if ollama show qwen3.5:2b >/dev/null 2>&1; then
+    OLLAMA_MODEL_V3=qwen3.5:2b
+  else
+    OLLAMA_MODEL_V3=qwen3.5:4b
+  fi
+fi
+export OLLAMA_MODEL_V3
+if ! ollama show "$OLLAMA_MODEL_V3" >/dev/null 2>&1; then
+  echo "Local Ollama model $OLLAMA_MODEL_V3 missing. Install with: ollama pull $OLLAMA_MODEL_V3" >&2
+  exit 1
+fi
+echo "V3 local AI: $OLLAMA_MODEL_V3 (offline Ollama, no paid APIs)"
 # Use the free, local MIT Silero voice automatically once installed.
 # Keep the existing Piper fallback until the Silero model passes its installer.
 SILERO_MODEL_PATH="$HOME/.local/share/zvonko/voices/v5_cis_base_nostress.jit"
@@ -64,6 +78,34 @@ fi
 if [[ "$TTS_ENGINE" == piper ]]; then
   echo "V3 local voice: $V3_PIPER_VOICE (fallback; Silero not installed or not selected)"
 fi
+# Run an actual short local inference before accepting live SIP calls. Loading
+# weights alone does not warm the first token path on all CUDA backends.
+# Failure is explicit in the console but never blocks use of the older model.
+echo 'Warming up local Ollama before the first telephone question...'
+.venv/bin/python - <<'PY' || echo 'WARNING: Ollama warm-up failed; check ollama ps and console logs if first reply is slow.'
+import json,os,time,urllib.error,urllib.request
+name=os.environ['OLLAMA_MODEL_V3']
+base=os.environ.get('OLLAMA_URL','http://127.0.0.1:11434').rstrip('/')
+if not (base.startswith('http://127.0.0.1:') or base.startswith('http://localhost:')):
+    raise SystemExit('Warm-up only supports local Ollama on loopback')
+payload={
+ 'model':name,'messages':[{'role':'user','content':'Ответь одним словом: готово.'}],
+ 'stream':False,'think':False,'keep_alive':'30m',
+ 'options':{'num_predict':20,'num_ctx':2048,'temperature':0.0},
+}
+request=urllib.request.Request(base+'/api/chat',data=json.dumps(payload).encode('utf-8'),
+                              headers={'Content-Type':'application/json'},method='POST')
+started=time.monotonic()
+try:
+    with urllib.request.urlopen(request,timeout=90) as response:
+        result=json.load(response)
+    content=(result.get('message') or {}).get('content','')
+    print(f'V3 brain warmed in {time.monotonic()-started:.1f}s; model={name}; reply_chars={len(content)}')
+    if not content:
+        print('WARNING: Ollama returned empty text. Try qwen3.5:2b or check model status.')
+except (TimeoutError,urllib.error.URLError,ValueError) as exc:
+    print(f'WARNING: Ollama warm-up failed after {time.monotonic()-started:.1f}s ({type(exc).__name__}).')
+PY
 echo 'Starting V3. Wait for Connected to local Asterisk ARI, then call 201 in MicroSIP.'
 echo 'Original 200 can still run separately. Ctrl+C stops only V3.'
 exec .venv/bin/python -u server_v3.py
