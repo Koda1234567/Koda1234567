@@ -84,7 +84,7 @@ def test_offline_installer_requires_successful_voice_verification():
     assert "printf '%s" in installer
     assert 'v5_cis_base_nostress.ready' in installer
     assert 'v5_cis_base_nostress.ready' in startup
-    assert 'Silero NOT verified' in startup
+    assert 'Ekaterina voice is NOT installed/verified' in startup
     assert 'export TTS_ENGINE=silero' in startup
     assert 'export SILERO_SPEAKER=ru_ekaterina' in startup
     assert 'exit 1' in startup
