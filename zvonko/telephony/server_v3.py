@@ -203,7 +203,7 @@ async def main() -> None:
         ari_app='zvonko3',
         admin_port=8767,
         enable_test_outbound=False,
-        ollama_model=os.environ.get('OLLAMA_MODEL_V3', 'qwen2.5:3b'),
+        ollama_model=os.environ.get('OLLAMA_MODEL_V3', 'qwen3:4b'),
     )
     cfg.validate()
     data=load_catalog()
