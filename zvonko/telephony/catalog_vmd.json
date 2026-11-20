@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "brand": "VMD",
   "sources": [
     "https://vmdrussia.ru/",
@@ -24,7 +24,23 @@
       ],
       "source": "https://vmdrussia.ru/bystro-nezametno-bezuprechno",
       "price_rub": null,
-      "stock_status": "не проверено"
+      "stock_status": "не проверено",
+      "specs": {
+        "catalog_name": "VMD F-MOP Li-ion",
+        "cleaning_width_mm": 450,
+        "clean_water_l": 4,
+        "waste_water_l": 6.5,
+        "brushes": 2,
+        "mass_kg": 26,
+        "performance_m2_per_h": 1000,
+        "performance_type": "практическая по прайсу",
+        "run_time_h": "до 2",
+        "power": "Li-ion 36 В, 12 Ач",
+        "configs": [
+          "комплект со съёмным аккумулятором и зарядным устройством"
+        ]
+      },
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27; для проверки технических комплектаций, не актуальности цен"
     },
     {
       "sku": "VMD F60 C52",
@@ -40,7 +56,19 @@
       ],
       "source": "https://vmdrussia.ru/",
       "price_rub": null,
-      "stock_status": "не проверено"
+      "stock_status": "не проверено",
+      "specs": {
+        "cleaning_width_mm": 520,
+        "squeegee_width_mm": 850,
+        "clean_water_l": 60,
+        "waste_water_l": 65,
+        "brushes": 1,
+        "performance_m2_per_h": 1560,
+        "performance_type": "от, по прайсу",
+        "power": "220 В, кабель 15 м",
+        "drive": false
+      },
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27; для проверки технических комплектаций, не актуальности цен"
     },
     {
       "sku": "VMD F60 B52",
@@ -57,7 +85,23 @@
       ],
       "source": "https://vmdrussia.ru/rabota-bez-prostoev-blagodarya-nalichiyu-zapchastej",
       "price_rub": null,
-      "stock_status": "не проверено"
+      "stock_status": "не проверено",
+      "specs": {
+        "cleaning_width_mm": 520,
+        "squeegee_width_mm": 850,
+        "clean_water_l": 60,
+        "waste_water_l": 65,
+        "brushes": 1,
+        "performance_m2_per_h": 1560,
+        "performance_type": "от, по прайсу",
+        "drive": false,
+        "power": "аккумулятор 24 В",
+        "configs": [
+          "GEL 2×100 Ач",
+          "Li 24 В 60 Ач"
+        ]
+      },
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27; для проверки технических комплектаций, не актуальности цен"
     },
     {
       "sku": "VMD F60 BT52",
@@ -73,7 +117,23 @@
       ],
       "source": "https://vmdrussia.ru/uzkie-prokhody--ne-problema",
       "price_rub": null,
-      "stock_status": "не проверено"
+      "stock_status": "не проверено",
+      "specs": {
+        "cleaning_width_mm": 520,
+        "squeegee_width_mm": 850,
+        "clean_water_l": 60,
+        "waste_water_l": 65,
+        "brushes": 1,
+        "performance_m2_per_h": 2000,
+        "performance_type": "от, по прайсу",
+        "drive": true,
+        "power": "аккумулятор 24 В",
+        "configs": [
+          "GEL 2×100 Ач",
+          "Li 24 В 60 Ач"
+        ]
+      },
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27; для проверки технических комплектаций, не актуальности цен"
     },
     {
       "sku": "VMD F80 BT58",
@@ -89,7 +149,22 @@
       ],
       "source": "https://vmdrussia.ru/",
       "price_rub": null,
-      "stock_status": "не проверено"
+      "stock_status": "не проверено",
+      "specs": {
+        "cleaning_width_mm": 580,
+        "squeegee_width_mm": 850,
+        "clean_water_l": 80,
+        "waste_water_l": 90,
+        "brushes": 1,
+        "performance_m2_per_h": 3500,
+        "performance_type": "от, по прайсу",
+        "drive": true,
+        "configs": [
+          "GEL 2×100 Ач",
+          "Li 24 В 100 Ач"
+        ]
+      },
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27; для проверки технических комплектаций, не актуальности цен"
     },
     {
       "sku": "VMD F80 BT70",
@@ -105,7 +180,22 @@
       ],
       "source": "https://vmdrussia.ru/uborka-trekh-etazhnogo-tcz-s-bolshoj-ploshhadyu",
       "price_rub": null,
-      "stock_status": "не проверено"
+      "stock_status": "не проверено",
+      "specs": {
+        "cleaning_width_mm": 700,
+        "squeegee_width_mm": 1050,
+        "clean_water_l": 80,
+        "waste_water_l": 90,
+        "brushes": 2,
+        "performance_m2_per_h": 4500,
+        "performance_type": "от, по прайсу",
+        "drive": true,
+        "configs": [
+          "GEL 2×140 Ач",
+          "Li 24 В 150 Ач, комплектацию уточнить: в прайсе противоречие по ёмкости"
+        ]
+      },
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27; для проверки технических комплектаций, не актуальности цен"
     },
     {
       "sku": "VMD F130 BT80",
@@ -121,7 +211,22 @@
       ],
       "source": "https://vmdrussia.ru/",
       "price_rub": null,
-      "stock_status": "не проверено"
+      "stock_status": "не проверено",
+      "specs": {
+        "cleaning_width_mm": 800,
+        "squeegee_width_mm": 1050,
+        "clean_water_l": 130,
+        "waste_water_l": 140,
+        "brushes": 2,
+        "performance_m2_per_h": 5500,
+        "performance_type": "от, по прайсу",
+        "drive": true,
+        "configs": [
+          "GEL 4×220 Ач",
+          "Li 24 В 200 Ач"
+        ]
+      },
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27; для проверки технических комплектаций, не актуальности цен"
     },
     {
       "sku": "VMD F200 BT90",
@@ -137,7 +242,21 @@
       ],
       "source": "https://vmdrussia.ru/",
       "price_rub": null,
-      "stock_status": "не проверено"
+      "stock_status": "не проверено",
+      "specs": {
+        "cleaning_width_mm": 900,
+        "squeegee_width_mm": 1280,
+        "clean_water_l": 200,
+        "waste_water_l": 210,
+        "brushes": 2,
+        "performance_m2_per_h": 6500,
+        "performance_type": "от, по прайсу",
+        "drive": true,
+        "configs": [
+          "Li 36 В 200 Ач"
+        ]
+      },
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27; для проверки технических комплектаций, не актуальности цен"
     },
     {
       "sku": "VMD S1",
@@ -152,7 +271,16 @@
       ],
       "source": "https://vmdrussia.ru/",
       "price_rub": null,
-      "stock_status": "не проверено"
+      "stock_status": "не проверено",
+      "specs": {
+        "cleaning_width_mm": 1000,
+        "waste_container_l": 55,
+        "performance_m2_per_h": 1840,
+        "performance_type": "теоретическая максимальная по прайсу",
+        "mass_kg": 21,
+        "brushes": 3
+      },
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27; для проверки технических комплектаций, не актуальности цен"
     },
     {
       "sku": "VMD S2",
@@ -167,7 +295,21 @@
       ],
       "source": "https://vmdrussia.ru/",
       "price_rub": null,
-      "stock_status": "не проверено"
+      "stock_status": "не проверено",
+      "specs": {
+        "cleaning_width_mm": 1000,
+        "waste_container_l": 55,
+        "water_tank_l": 5.5,
+        "performance_m2_per_h": 1840,
+        "performance_type": "теоретическая максимальная по прайсу",
+        "run_time_h": "до 2",
+        "mass_kg": 26,
+        "brushes": 3,
+        "configs": [
+          "система орошения и АКБ"
+        ]
+      },
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27; для проверки технических комплектаций, не актуальности цен"
     },
     {
       "sku": "VMD C100",
@@ -183,7 +325,20 @@
       ],
       "source": "https://vmdrussia.ru/",
       "price_rub": null,
-      "stock_status": "не проверено"
+      "stock_status": "не проверено",
+      "specs": {
+        "cleaning_width_mm": 1150,
+        "waste_container_l": 90,
+        "water_tank_l": 70,
+        "performance_m2_per_h": 6000,
+        "performance_type": "теоретическая максимальная по прайсу",
+        "brushes": 3,
+        "configs": [
+          "GEL 3×60 Ач",
+          "LiFePO4 72 Ач"
+        ]
+      },
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27; для проверки технических комплектаций, не актуальности цен"
     },
     {
       "sku": "VMD C120P",
@@ -214,6 +369,141 @@
       "source": "https://vmdrussia.ru/",
       "price_rub": null,
       "stock_status": "не проверено"
+    },
+    {
+      "sku": "VMD F13",
+      "category": "specialty",
+      "tier": "compact",
+      "summary": "Сетевая орбитальная роторная машина для обработки полов; в комплекте падодержатель и пад.",
+      "traits": [
+        "220 В",
+        "бак 3 л",
+        "мощность 350 Вт"
+      ],
+      "examples": [
+        "роторная обработка полов"
+      ],
+      "specs": {
+        "mass_kg": 16.5,
+        "power": "220 В",
+        "clean_water_l": 3,
+        "power_w": 350,
+        "rotation_rpm": 144
+      },
+      "source": "supplier_price_list_2026-05-27",
+      "price_rub": null,
+      "stock_status": "не проверено",
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27"
+    },
+    {
+      "sku": "VMD EW-440",
+      "category": "specialty",
+      "tier": "compact",
+      "summary": "Специализированная уборочная машина EW-440 для эскалаторных зон по прайсу поставщика.",
+      "traits": [
+        "рабочая ширина 440 мм",
+        "сетевая 220 В",
+        "бак чистой воды 10 л, грязной 4 л"
+      ],
+      "examples": [
+        "эскалаторы; применимость к конкретному объекту уточнить"
+      ],
+      "specs": {
+        "cleaning_width_mm": 440,
+        "clean_water_l": 10,
+        "waste_water_l": 4,
+        "mass_kg": 36,
+        "power": "220 В"
+      },
+      "source": "supplier_price_list_2026-05-27",
+      "price_rub": null,
+      "stock_status": "не проверено",
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27"
+    },
+    {
+      "sku": "VMD LiFePO4 60 Ah",
+      "category": "accessory",
+      "tier": "other",
+      "summary": "Литий-железо-фосфатная АКБ 60 Ач, 24 В, зарядное устройство в комплекте.",
+      "traits": [
+        "АКБ",
+        "24 В"
+      ],
+      "examples": [
+        "комплектующие, совместимость по паспорту машины"
+      ],
+      "specs": {
+        "capacity_ah": 60,
+        "voltage_v": 24
+      },
+      "source": "supplier_price_list_2026-05-27",
+      "price_rub": null,
+      "stock_status": "не проверено",
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27"
+    },
+    {
+      "sku": "VMD LiFePO4 100 Ah",
+      "category": "accessory",
+      "tier": "other",
+      "summary": "Литий-железо-фосфатная АКБ 100 Ач, 24 В, зарядное устройство в комплекте.",
+      "traits": [
+        "АКБ",
+        "24 В"
+      ],
+      "examples": [
+        "комплектующие, совместимость по паспорту машины"
+      ],
+      "specs": {
+        "capacity_ah": 100,
+        "voltage_v": 24
+      },
+      "source": "supplier_price_list_2026-05-27",
+      "price_rub": null,
+      "stock_status": "не проверено",
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27"
+    },
+    {
+      "sku": "VMD LiFePO4 150 Ah",
+      "category": "accessory",
+      "tier": "other",
+      "summary": "Литий-железо-фосфатная АКБ 150 Ач, 24 В, зарядное устройство в комплекте.",
+      "traits": [
+        "АКБ",
+        "24 В"
+      ],
+      "examples": [
+        "комплектующие, совместимость по паспорту машины"
+      ],
+      "specs": {
+        "capacity_ah": 150,
+        "voltage_v": 24
+      },
+      "source": "supplier_price_list_2026-05-27",
+      "price_rub": null,
+      "stock_status": "не проверено",
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27"
+    },
+    {
+      "sku": "VMD LiFePO4 200 Ah",
+      "category": "accessory",
+      "tier": "other",
+      "summary": "Литий-железо-фосфатная АКБ 200 Ач, 24 В, зарядное устройство в комплекте.",
+      "traits": [
+        "АКБ",
+        "24 В"
+      ],
+      "examples": [
+        "комплектующие, совместимость по паспорту машины"
+      ],
+      "specs": {
+        "capacity_ah": 200,
+        "voltage_v": 24
+      },
+      "source": "supplier_price_list_2026-05-27",
+      "price_rub": null,
+      "stock_status": "не проверено",
+      "source_price_list": "Прайс VMD.xlsx, 2026-05-27"
     }
-  ]
+  ],
+  "source_note": "Дополнено данными прайса VMD от 27 мая 2026 из переписки. Числа производительности — паспортные/указанные в прайсе, не гарантированная производительность на любом объекте. Розничные цены в репозиторий не публикуются, так как могут устареть."
 }
