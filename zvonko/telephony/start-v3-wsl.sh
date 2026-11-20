@@ -15,9 +15,28 @@ set -a
 source "$ENV_FILE"
 set +a
 export OLLAMA_MODEL_V3="$(printenv OLLAMA_MODEL_V3 || echo qwen3.5:4b)"
-# Optional premium cloud voice is disabled by default and requires explicit
-# authorization + a private key in ~/.config/zvonko/ai.env.
-export TTS_ENGINE="${ZVONKO_VOICE_BACKEND:-piper}"
+# Use the free, local MIT Silero voice automatically once installed.
+# Keep the existing Piper fallback until the Silero model passes its installer.
+SILERO_MODEL_PATH="$HOME/.local/share/zvonko/voices/v5_cis_base_nostress.jit"
+FREE_V3_ENGINE=piper
+if [[ -s "$SILERO_MODEL_PATH" ]]; then
+  FREE_V3_ENGINE=silero
+fi
+export TTS_ENGINE="${ZVONKO_VOICE_BACKEND:-$FREE_V3_ENGINE}"
+if [[ "$TTS_ENGINE" == silero ]]; then
+  if [[ ! -s "$SILERO_MODEL_PATH" ]]; then
+    echo 'Free Silero model missing: bash install-silero-v3-wsl.sh' >&2
+    exit 1
+  fi
+  export SILERO_MODEL_PATH
+  export SILERO_SPEAKER="${ZVONKO_SILERO_SPEAKER:-ru_ekaterina}"
+  case "$SILERO_SPEAKER" in
+    ru_ekaterina|ru_eduard|ru_kejilgan) ;;
+    *) echo 'Invalid free Silero voice. Try ru_ekaterina, ru_eduard or ru_kejilgan.' >&2; exit 1 ;;
+  esac
+  echo "V3 free local Silero voice: $SILERO_SPEAKER (MIT license)"
+fi
+# Optional paid TTS remains disabled unless explicitly enabled with credentials.
 if [[ "$TTS_ENGINE" == elevenlabs ]]; then
   if [[ "${ALLOW_CLOUD_TTS:-false}" != true ]]; then
     echo 'Cloud voice not authorized. Run bash configure-elevenlabs-wsl.sh' >&2; exit 1
