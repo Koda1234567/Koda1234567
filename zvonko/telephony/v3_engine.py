@@ -100,8 +100,11 @@ async def stream_sales_response(
         'model': cfg.ollama_model,
         'messages': [{'role': 'system', 'content': prompt}] + history[-8:],
         'stream': True,
-        'keep_alive': '15m',
-        'options': {'num_predict': 85, 'num_ctx': 3072, 'temperature': 0.35},
+        # In live sales calls, skip hidden reasoning tokens to minimize silence.
+        # The verified VMD catalog supplies factual grounding independently.
+        'think': False,
+        'keep_alive': '30m',
+        'options': {'num_predict': 100, 'num_ctx': 4096, 'temperature': 0.25},
     }
     chunker = SpeechChunker()
     async with http.post(
