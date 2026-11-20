@@ -20,6 +20,7 @@ from sales import fast_sales_reply, sales_instruction
 from server import PhoneCall, PhoneServer, create_app
 from voice import quick_voice_reply, rms, stop_requested, ulaw_decode
 from v3_engine import stream_sales_response
+from knowledge_vmd import load_catalog, catalog_context, product_answer
 
 log = logging.getLogger('zvonko.v3')
 
@@ -117,8 +118,8 @@ class V3PhoneCall(PhoneCall):
                     self._speak_and_finish('Понял, не буду отвлекать. Всего доброго.', epoch))
                 return
 
-            canned = quick_voice_reply(heard) or fast_sales_reply(
-                heard, self.sales, self.cfg.sales_offer)
+            canned = (product_answer(heard, self.sales) or quick_voice_reply(heard)
+                      or fast_sales_reply(heard, self.sales, self.cfg.sales_offer))
             if canned:
                 self.response_task = asyncio.create_task(
                     self._speak_short(canned, epoch))
@@ -153,8 +154,9 @@ class V3PhoneCall(PhoneCall):
         started = time.monotonic()
         spoken = []
         try:
-            instruction = sales_instruction(
-                self.sales, self.cfg.sales_offer, self.cfg.sales_goal)
+            instruction = (catalog_context(self.history[-1]['content'], self.sales)
+                           + '\n' + sales_instruction(
+                               self.sales, self.cfg.sales_offer, self.cfg.sales_goal))
             async for phrase in stream_sales_response(
                     self.ai.http, self.cfg, list(self.history), instruction):
                 if self.closed or epoch != self.epoch:
@@ -199,6 +201,9 @@ async def main() -> None:
         ollama_model=os.environ.get('OLLAMA_MODEL_V3', 'qwen2.5:3b'),
     )
     cfg.validate()
+    data=load_catalog()
+    log.info('VMD catalog loaded: %d verified model cards; no unverified prices',
+             len(data['products']))
     server = V3PhoneServer(cfg)
     await server.start()
     runner = web.AppRunner(create_app(server))
