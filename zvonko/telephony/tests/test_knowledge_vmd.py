@@ -63,3 +63,32 @@ def test_no_capacity_equals_case_study():
     context=catalog_context('влажная уборка склада',state)
     assert 'кейс' in context.lower()
     assert 'кейс — не паспортная максимальная площадь' in context
+
+
+def test_specialty_range_and_battery_accessories_from_supplier_list():
+    products=load_catalog()['products']
+    assert len(products)==19
+    names={x['sku'] for x in products}
+    assert {'VMD F13','VMD EW-440','АКБ LiFePO4 60 Ач',
+            'АКБ LiFePO4 100 Ач','АКБ LiFePO4 150 Ач',
+            'АКБ LiFePO4 200 Ач'}<=names
+    reply=product_answer('Расскажи про VMD F13',SalesState())
+    assert 'роторная' in reply.lower()
+
+
+def test_comparison_uses_drive_and_water_spray_facts():
+    s=SalesState()
+    x=product_answer('Чем отличается VMD F60 B52 от VMD F60 BT52?',s)
+    assert 'привода' in x and 'F60 BT52' in x
+    y=product_answer('Сравни VMD S1 и VMD S2',s)
+    assert 'орошение' in y.lower()
+
+
+def test_actual_specifications_from_supplier_price_list_are_available():
+    p={x['sku']:x for x in load_catalog()['products']}
+    assert p['VMD F60 B52']['specs']['clean_water_l']==60
+    assert p['VMD F80 BT70']['specs']['brushes']==2
+    assert p['VMD S2']['specs']['water_tank_l']==5.5
+    assert p['VMD F200 BT90']['specs']['performance_m2_per_h']==6500
+    # Historical quoted figures must not be silently presented as current prices.
+    assert all(x['price_rub'] is None for x in p.values())
