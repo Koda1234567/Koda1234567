@@ -197,12 +197,71 @@ def test_v3_speaks_if_local_model_stays_silent():
              patch('server_v3.quick_voice_reply', return_value=None), \
              patch('server_v3.fast_sales_reply', return_value=None), \
              patch('server_v3.stream_sales_response', slow_response), \
-             patch('server_v3.V3_FIRST_PHRASE_TIMEOUT', 0.03):
+             patch('server_v3.V3_FIRST_PHRASE_TIMEOUT', 0.03), \
+             patch('server_v3.V3_EXTENDED_PHRASE_TIMEOUT', 0.03):
             await asyncio.wait_for(
                 call.handle_turn(np.zeros(8000, dtype=np.int16), 1),
                 timeout=1)
-        assert len(spoken) == 1
-        assert 'Повторите' in spoken[0]
+        assert len(spoken) == 2
+        assert 'Одну секунду' in spoken[0]
+        assert 'Могу помочь' in spoken[1]
         assert call._processing_turn is False
 
     asyncio.run(test_case())
+
+
+def test_v3_slow_model_can_finish_after_audible_cue():
+    """The first deadline must NOT kill a Qwen reply arriving shortly after."""
+    import asyncio
+    import numpy as np
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    async def transcribe(_):
+        return 'Подберите решение для моего помещения'
+
+    async def delayed_response(*args, **kwargs):
+        await asyncio.sleep(0.065)
+        yield 'Для вашего объекта подберём технику по площади.'
+        yield 'Какое покрытие пола?'
+
+    async def test_case():
+        ai = SimpleNamespace(transcribe=transcribe, http=None)
+        cfg = Config(ari_password='secret', admin_token='x'*32)
+        call = V3PhoneCall(SimpleNamespace(cfg=cfg, ari=None, ai=ai),
+                           'slower-test', 'inbound')
+        call.epoch = 1
+        call._processing_turn = True
+        spoken = []
+
+        async def record_speech(reply):
+            spoken.append(reply)
+            await asyncio.sleep(0.001)
+
+        call.say = record_speech
+        with patch('server_v3.product_answer', return_value=None), \
+             patch('server_v3.quick_voice_reply', return_value=None), \
+             patch('server_v3.fast_sales_reply', return_value=None), \
+             patch('server_v3.stream_sales_response', delayed_response), \
+             patch('server_v3.V3_FIRST_PHRASE_TIMEOUT', 0.015), \
+             patch('server_v3.V3_EXTENDED_PHRASE_TIMEOUT', 0.25):
+            await asyncio.wait_for(
+                call.handle_turn(np.zeros(8000, dtype=np.int16), 1),
+                timeout=1)
+        assert 'Одну секунду' in spoken[0]
+        assert 'Для вашего объекта' in spoken[1]
+        assert 'покрытие пола' in spoken[2]
+        assert call._processing_turn is False
+
+    asyncio.run(test_case())
+
+
+def test_fast_brain_stays_local_and_is_prewarmed_before_calls():
+    from pathlib import Path
+    script=(Path(__file__).resolve().parents[1] / 'start-v3-wsl.sh').read_text()
+    assert 'ollama show qwen3.5:2b' in script
+    assert 'V3 local AI:' in script
+    assert "model':name" in script
+    assert "'think':False" in script
+    assert "'keep_alive':'30m'" in script
+    assert 'before the first telephone question' in script
