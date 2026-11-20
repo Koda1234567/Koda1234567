@@ -14,10 +14,18 @@ fi
 set -a
 source "$ENV_FILE"
 set +a
-export OLLAMA_MODEL_V3="$(printenv OLLAMA_MODEL_V3 || echo qwen2.5:3b)"
-export TTS_ENGINE=piper
+export OLLAMA_MODEL_V3="$(printenv OLLAMA_MODEL_V3 || echo qwen3:4b)"
+# Optional premium cloud voice is disabled by default and requires explicit
+# authorization + a private key in ~/.config/zvonko/ai.env.
+export TTS_ENGINE="${ZVONKO_VOICE_BACKEND:-piper}"
+if [[ "$TTS_ENGINE" == elevenlabs ]]; then
+  if [[ "${ALLOW_CLOUD_TTS:-false}" != true ]]; then
+    echo 'Cloud voice not authorized. Run bash configure-elevenlabs-wsl.sh' >&2; exit 1
+  fi
+  echo 'Cloud ElevenLabs voice enabled: AI reply TEXT leaves the computer.'
+fi
 export PIPER_VOICE_PATH="$HOME/.local/share/zvonko/voices/ru_RU-denis-medium.onnx"
-if [[ ! -s "$PIPER_VOICE_PATH" ]]; then
+if [[ "$TTS_ENGINE" == piper && ! -s "$PIPER_VOICE_PATH" ]]; then
   echo 'V3 voice Denis missing: bash setup-v3-wsl.sh' >&2
   exit 1
 fi
