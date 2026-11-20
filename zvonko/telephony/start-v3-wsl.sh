@@ -18,14 +18,15 @@ export OLLAMA_MODEL_V3="$(printenv OLLAMA_MODEL_V3 || echo qwen3.5:4b)"
 # Use the free, local MIT Silero voice automatically once installed.
 # Keep the existing Piper fallback until the Silero model passes its installer.
 SILERO_MODEL_PATH="$HOME/.local/share/zvonko/voices/v5_cis_base_nostress.jit"
+SILERO_READY="$HOME/.local/share/zvonko/voices/v5_cis_base_nostress.ready"
 FREE_V3_ENGINE=piper
-if [[ -s "$SILERO_MODEL_PATH" ]]; then
+if [[ -s "$SILERO_MODEL_PATH" && -s "$SILERO_READY" ]]; then
   FREE_V3_ENGINE=silero
 fi
 export TTS_ENGINE="${ZVONKO_VOICE_BACKEND:-$FREE_V3_ENGINE}"
 if [[ "$TTS_ENGINE" == silero ]]; then
-  if [[ ! -s "$SILERO_MODEL_PATH" ]]; then
-    echo 'Free Silero model missing: bash install-silero-v3-wsl.sh' >&2
+  if [[ ! -s "$SILERO_MODEL_PATH" || ! -s "$SILERO_READY" ]]; then
+    echo 'Silero NOT verified. Run: bash install-silero-v3-wsl.sh' >&2
     exit 1
   fi
   export SILERO_MODEL_PATH
@@ -61,7 +62,7 @@ if [[ "$TTS_ENGINE" == piper && ( ! -s "$PIPER_VOICE_PATH" || ! -s "$PIPER_VOICE
   exit 1
 fi
 if [[ "$TTS_ENGINE" == piper ]]; then
-  echo "V3 local voice: $V3_PIPER_VOICE"
+  echo "V3 local voice: $V3_PIPER_VOICE (fallback; Silero not installed or not selected)"
 fi
 echo 'Starting V3. Wait for Connected to local Asterisk ARI, then call 201 in MicroSIP.'
 echo 'Original 200 can still run separately. Ctrl+C stops only V3.'
