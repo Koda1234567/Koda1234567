@@ -50,7 +50,7 @@ class FakeJitModel:
         assert tokens.values == silero_token_ids('Вопрос по VMD F60.')
         assert tokens.values[0] == 2 and tokens.values[-1] == 1
         assert speaker_ids.values == [28]  # Official ru_ekaterina speaker ID.
-        return FakeAudio(np.sin(np.arange(48000, dtype=np.float32) / 17) * 0.4)
+        return FakeAudio((np.sin(np.arange(48000, dtype=np.float32) / 17) * 0.4)[None, :])
 
 
 def test_free_voice_uses_cyrillic_and_normalizes_models():
@@ -115,3 +115,22 @@ def test_offline_installer_requires_successful_voice_verification():
     assert 'export TTS_ENGINE=silero' in startup
     assert 'export SILERO_SPEAKER=ru_ekaterina' in startup
     assert 'exit 1' in startup
+
+
+
+def test_jit_rejects_multichannel_not_single_voice():
+    """Only mono (1,N)/(N,1) or flat (N,) output is allowed."""
+    import contextlib
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    class MultiChannelFake(FakeJitModel):
+        def __call__(self, tokens, speaker_ids):
+            return FakeAudio(np.ones((2, 48000), dtype=np.float32) * .2)
+
+    with patch.dict(sys.modules, {'torch': SimpleNamespace(
+            inference_mode=contextlib.nullcontext,
+            Tensor=type('Tensor', (), {}), LongTensor=FakeTensor)}):
+        with pytest.raises(RuntimeError, match=r"shape=\\(2, 48000\\)"):
+            synthesize_silero_8k(
+                MultiChannelFake(), 'Вопрос по VMD F60.', 'ru_ekaterina')
