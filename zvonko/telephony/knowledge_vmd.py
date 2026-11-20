@@ -26,7 +26,8 @@ def load_catalog() -> dict[str, Any]:
     seen=set()
     for model in data['products']:
         sku=model.get('sku')
-        if not isinstance(sku,str) or not sku.startswith('VMD ') or sku in seen:
+        if (not isinstance(sku,str) or not (sku.startswith('VMD ') or
+                (model.get('category')=='accessory' and sku.startswith('АКБ '))) or sku in seen):
             raise ValueError('VMD catalog SKU missing or duplicated')
         seen.add(sku)
         if (not model.get('source','').startswith('https://vmdrussia.ru/')
@@ -120,7 +121,7 @@ def catalog_context(text: str, state: Any) -> str:
     pieces=[
         'ПРОДАВЕЦ: независимый продавец оборудования VMD, не официальный сайт бренда.',
         'АССОРТИМЕНТ: поломоечные (влажная уборка), подметальные (сухая уборка), роторные и эскалаторные машины, аккумуляторы VMD.',
-        'МОДЕЛИ (публично представлены): '+', '.join(x['sku'] for x in data['products'])+'.',
+        'ПОДТВЕРЖДЁННЫЙ АССОРТИМЕНТ (публичный сайт и прайс поставщика): '+', '.join(x['sku'] for x in data['products'])+'.',
         'ТОЧНЫЕ ПРАВИЛА: не называй цену, наличие, сроки, скидку, гарантии или производительность без подтверждённых данных; кейс — не паспортная максимальная площадь.',
         'Подбор предварительный; нужны площадь, тип загрязнений, пол, проходы, режим уборки, питание и приоритет клиента.',
     ]
