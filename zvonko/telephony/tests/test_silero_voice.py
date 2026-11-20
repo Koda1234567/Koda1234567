@@ -131,6 +131,6 @@ def test_jit_rejects_multichannel_not_single_voice():
     with patch.dict(sys.modules, {'torch': SimpleNamespace(
             inference_mode=contextlib.nullcontext,
             Tensor=type('Tensor', (), {}), LongTensor=FakeTensor)}):
-        with pytest.raises(RuntimeError, match=r"shape=\\(2, 48000\\)"):
+        with pytest.raises(RuntimeError, match="invalid mono waveform"):
             synthesize_silero_8k(
                 MultiChannelFake(), 'Вопрос по VMD F60.', 'ru_ekaterina')
