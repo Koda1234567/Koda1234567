@@ -150,17 +150,48 @@ def catalog_context(text: str, state: Any) -> str:
         pieces.append('Сначала уточни: нужна влажная мойка пола или сухой сбор мусора?')
     return '\n'.join(pieces)
 
+def _spoken_specs(item: dict) -> str:
+    spec=item.get('specs') or {}
+    parts=[]
+    for key,fmt in (
+        ('cleaning_width_mm',lambda v:f'ширина уборки {v} миллиметров'),
+        ('clean_water_l',lambda v:f'бак чистой воды {v} литров'),
+        ('waste_container_l',lambda v:f'мусоросборник {v} литров'),
+        ('power',lambda v:f'питание {v}')):
+        if key in spec:
+            parts.append(fmt(spec[key]))
+    return '; '.join(parts[:2])
+
+def _compare_two(a: dict, b: dict) -> str:
+    a_spec=a.get('specs') or {}
+    b_spec=b.get('specs') or {}
+    if a_spec.get('drive') is False and b_spec.get('drive') is True:
+        return (f'{a["sku"]} без привода хода, а {b["sku"]} с приводом — '
+                'оператору не нужно толкать машину самостоятельно.')
+    if a_spec.get('drive') is True and b_spec.get('drive') is False:
+        return _compare_two(b,a)
+    if a['sku']=='VMD S1' and b['sku']=='VMD S2' or a['sku']=='VMD S2' and b['sku']=='VMD S1':
+        return 'VMD S2 оснащена орошением водой, в отличие от VMD S1. Обе предназначены для подметания.'
+    one=_spoken_specs(a);two=_spoken_specs(b)
+    if not one or not two:
+        return (f'Обе модели есть в каталоге VMD, но точные различия по этим параметрам '
+                'нужно проверить по техническим картам.')
+    return f'{a["sku"]}: {one}. {b["sku"]}: {two}.'
+
 def product_answer(text: str, state: Any) -> str | None:
     """Immediate, factual answers to direct catalogue questions."""
     t=_norm(text)
     products=load_catalog()['products']
     mentioned=_mentioned_products(text,products)
     pricing=any(term in t for term in ('цен','стоим','сколько стоит','прайс','в наличии','остаток'))
+    if len(mentioned)>=2 and any(term in t for term in ('отлич','разниц','сравн','лучше')):
+        return _compare_two(mentioned[0],mentioned[1])
     if mentioned and pricing:
         return f"По {mentioned[0]['sku']} актуальную цену и наличие нужно проверить в прайсе поставщика. Для какого объекта рассматриваете?"
     if mentioned and any(term in t for term in ('что','расскаж','отлич','характерист','подойд','знаешь','модель','про ')):
         item=mentioned[0]
-        return f"{item['sku']}: {item['summary']} Подскажите площадь и тип уборки."
+        fact=_spoken_specs(item)
+        return f"{item['sku']}: {item['summary']} {fact}." if fact else f"{item['sku']}: {item['summary']}"
     generic=any(term in t for term in (
         'что прода', 'что вы прода', 'чем торгу', 'что у вас есть','что можете предлож',
         'какой ассортимент', 'какие товары','что за техника', 'какое оборудование',
