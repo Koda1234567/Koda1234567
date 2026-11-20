@@ -46,7 +46,8 @@ def test_free_voice_uses_cyrillic_and_normalizes_models():
 
 
 def test_silero_uses_only_local_model_and_converts_to_rtp_pcm16():
-    with patch.dict(sys.modules, {'torch': SimpleNamespace(inference_mode=contextlib.nullcontext)}):
+    with patch.dict(sys.modules, {'torch': SimpleNamespace(inference_mode=contextlib.nullcontext,
+                                                           Tensor=type('Tensor', (), {}))}):
         pcm = synthesize_silero_8k(FakeModel(), 'Вопрос по VMD F60.', 'ru_ekaterina')
     assert len(pcm) == 8000
     assert pcm.dtype == np.int16
