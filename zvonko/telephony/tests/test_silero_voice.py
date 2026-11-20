@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import Config
-from silero_voice import normalize_silero_text, synthesize_silero_8k
+from silero_voice import normalize_silero_text, silero_token_ids, synthesize_silero_8k, SILERO_SAMPLE_RATE, SILERO_SPEAKER_IDS
 
 
 class FakeAudio:
@@ -30,12 +30,27 @@ class FakeAudio:
         return self.samples
 
 
-class FakeModel:
-    def apply_tts(self, **kwargs):
-        assert kwargs['speaker'] == 'ru_ekaterina'
-        assert kwargs['sample_rate'] == 24000
-        assert 'ви эм ди' in kwargs['text']
-        return FakeAudio(np.sin(np.arange(24000, dtype=np.float32) / 17) * 0.4)
+class FakeTensor:
+    def __init__(self, values):
+        self.values = values
+        self.shape = (len(values),)
+
+    def unsqueeze(self, axis):
+        assert axis == 0
+        self.shape = (1, len(self.values))
+        return self
+
+
+class FakeJitModel:
+    # This mirrors the JIT object shown in Silero's official notebook.
+    # Intentionally has NO apply_tts() attribute.
+    def __call__(self, tokens, speaker_ids):
+        from silero_voice import silero_token_ids
+        assert tokens.shape == (1, len(tokens.values))
+        assert tokens.values == silero_token_ids('Вопрос по VMD F60.')
+        assert tokens.values[0] == 2 and tokens.values[-1] == 1
+        assert speaker_ids.values == [28]  # Official ru_ekaterina speaker ID.
+        return FakeAudio(np.sin(np.arange(48000, dtype=np.float32) / 17) * 0.4)
 
 
 def test_free_voice_uses_cyrillic_and_normalizes_models():
@@ -45,10 +60,22 @@ def test_free_voice_uses_cyrillic_and_normalizes_models():
                    for c in normalize_silero_text('VMD F60 B52'))
 
 
+def test_jit_token_and_speaker_map_matches_official_notebook():
+    assert SILERO_SAMPLE_RATE == 48000
+    assert SILERO_SPEAKER_IDS['ru_ekaterina'] == 28
+    assert SILERO_SPEAKER_IDS['ru_eduard'] == 27
+    assert SILERO_SPEAKER_IDS['ru_kejilgan'] == 32
+    codes = silero_token_ids('Привет!')
+    assert codes[0] == 2 and codes[-1] == 1
+    assert len(codes) > 5
+
+
 def test_silero_uses_only_local_model_and_converts_to_rtp_pcm16():
-    with patch.dict(sys.modules, {'torch': SimpleNamespace(inference_mode=contextlib.nullcontext,
-                                                           Tensor=type('Tensor', (), {}))}):
-        pcm = synthesize_silero_8k(FakeModel(), 'Вопрос по VMD F60.', 'ru_ekaterina')
+    with patch.dict(sys.modules, {'torch': SimpleNamespace(
+            inference_mode=contextlib.nullcontext,
+            Tensor=type('Tensor', (), {}), LongTensor=FakeTensor)}):
+        pcm = synthesize_silero_8k(
+            FakeJitModel(), 'Вопрос по VMD F60.', 'ru_ekaterina')
     assert len(pcm) == 8000
     assert pcm.dtype == np.int16
     assert np.max(np.abs(pcm.astype(np.int32))) > 100
@@ -56,7 +83,7 @@ def test_silero_uses_only_local_model_and_converts_to_rtp_pcm16():
 
 def test_invalid_voice_rejected_before_model_call():
     with pytest.raises(ValueError, match='Unsupported'):
-        synthesize_silero_8k(FakeModel(), 'Здравствуйте', 'random')
+        synthesize_silero_8k(FakeJitModel(), 'Здравствуйте', 'random')
     cfg = Config(tts_engine='silero', silero_speaker='unknown',
                  ari_password='secret', admin_token='x' * 32)
     with pytest.raises(ValueError, match='Silero'):
