@@ -1,7 +1,9 @@
-"""Optional fully local Silero v5 CIS Base (MIT) voice for Zvonko extension 201.
+"""Fully local Silero V5 CIS Base (MIT) voice for Zvonko extension 201.
 
-No cloud TTS: inference uses a locally downloaded official TorchScript model.
-Model reference: https://github.com/snakers4/silero-models (LICENSE_CIS).
+The downloaded .jit file is the TorchScript *forward* model, not the Python
+package model: it has no apply_tts method. Input uses integer symbol IDs and
+speaker IDs documented in the authors' official v5_cis_base_jit.ipynb.
+https://github.com/snakers4/silero-models/blob/master/v5_cis_base_jit.ipynb
 """
 from __future__ import annotations
 
@@ -11,8 +13,17 @@ import numpy as np
 from scipy.signal import resample_poly
 
 SILERO_MODEL_URL = "https://models.silero.ai/models/tts/ru/v5_cis_base_nostress.jit"
-SILERO_SPEAKERS = frozenset(("ru_ekaterina", "ru_eduard", "ru_kejilgan"))
-SILERO_SAMPLE_RATE = 24000
+# Official TorchScript model generates 48 kHz audio; telephony is 8 kHz.
+SILERO_SAMPLE_RATE = 48000
+# IDs are from the official Silero CIS JIT notebook, NOT the alphabetic order.
+SILERO_SPEAKER_IDS = {
+    "ru_eduard": 27,
+    "ru_ekaterina": 28,
+    "ru_kejilgan": 32,
+}
+SILERO_SPEAKERS = frozenset(SILERO_SPEAKER_IDS)
+SILERO_SYMBOLS = "|||!'+,-.:;?hабвгдежзийклмнопрстуфхцчшщъыьэюяёєіїјўґғҕҗҙқҝҡңҥҫүұҳҷҹһӑӗәӝӟӣӥӧөӯӱӳӵӏ—… "
+_SYMBOL_TO_ID = {symbol: i for i, symbol in enumerate(SILERO_SYMBOLS)}
 
 
 def normalize_silero_text(text: str) -> str:
@@ -21,14 +32,19 @@ def normalize_silero_text(text: str) -> str:
     text = normalize_tts_text(text)
     text = re.sub(r"\bVMD\b", "ви эм ди", text, flags=re.IGNORECASE)
     text = re.sub(r"\bF\s*(?=[а-яё])", "эф ", text, flags=re.IGNORECASE)
-    # Silero's Russian voice should never be fed unexplained Latin glyphs.
     text = re.sub(r"[A-Za-z]+", " ", text)
     text = re.sub(r"\s+", " ", text).strip(" ,;:-")
     return text or "Повторите, пожалуйста."
 
 
+def silero_token_ids(text: str) -> list[int]:
+    """TorchScript token IDs: BOS=2, EOS=1, matching official JIT example."""
+    phrase = normalize_silero_text(text).lower()
+    return [2] + [_SYMBOL_TO_ID[c] for c in phrase if c in _SYMBOL_TO_ID] + [1]
+
+
 def load_silero_model(path: str):
-    """Load the already downloaded model; never download at runtime."""
+    """Load the already-downloaded JIT model; never download at runtime."""
     import torch
     path = Path(path).expanduser()
     if not path.is_file() or path.stat().st_size < 1_000_000:
@@ -41,17 +57,23 @@ def load_silero_model(path: str):
 
 
 def synthesize_silero_8k(model, text: str, speaker: str) -> np.ndarray:
-    """Return 8kHz mono PCM16 compatible with existing Asterisk ulaw RTP."""
-    if speaker not in SILERO_SPEAKERS:
+    """Return 8kHz mono PCM16 compatible with Asterisk ulaw RTP."""
+    speaker_id = SILERO_SPEAKER_IDS.get(speaker)
+    if speaker_id is None:
         raise ValueError("Unsupported Silero CIS voice")
-    phrase = normalize_silero_text(text)
+
     import torch
+    # The .jit model is callable. It does not provide model.apply_tts().
+    # Input is (1, sequence_length) of integer text tokens + (1,) speaker ID.
+    text_tensor = torch.LongTensor(silero_token_ids(text)).unsqueeze(0)
+    speaker_tensor = torch.LongTensor([speaker_id])
     with torch.inference_mode():
-        speech = model.apply_tts(text=phrase, speaker=speaker,
-                                 sample_rate=SILERO_SAMPLE_RATE)
+        speech = model(text_tensor, speaker_tensor)
+
     audio = np.asarray(speech.detach().cpu().numpy(), dtype=np.float32)
-    if audio.ndim != 1 or audio.size == 0:
+    if audio.ndim != 1 or audio.size == 0 or not np.isfinite(audio).all():
         raise RuntimeError("Silero produced invalid mono waveform")
-    # The model emits floating PCM (-1..1) at 24kHz; telephone RTP uses 8k.
-    pcm = resample_poly(audio, 1, 3)
+
+    # 48kHz native => 8kHz for RTP: divide sample rate by six.
+    pcm = resample_poly(audio, 1, 6)
     return np.clip(pcm * 32767, -32768, 32767).astype(np.int16)
