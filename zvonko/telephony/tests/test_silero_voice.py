@@ -63,10 +63,12 @@ def test_invalid_voice_rejected_before_model_call():
         cfg.validate()
 
 
-def test_v3_launch_prefers_offline_silero_but_never_changes_extension_200():
+def test_v3_launch_requires_ekaterina_and_never_changes_extension_200():
     shell = (Path(__file__).resolve().parents[1] / 'start-v3-wsl.sh').read_text()
-    assert 'FREE_V3_ENGINE=silero' in shell
-    assert 'SILERO_SPEAKER' in shell
+    assert 'export TTS_ENGINE=silero' in shell
+    assert 'export SILERO_SPEAKER=ru_ekaterina' in shell
+    assert 'Refusing to start with Denis' in shell
+    assert 'FREE_V3_ENGINE=piper' not in shell
     assert 'install-silero-v3-wsl.sh' in shell
     assert 'start-local-ai-wsl.sh' not in shell
     assert 'systemctl restart asterisk' not in shell
@@ -82,5 +84,7 @@ def test_offline_installer_requires_successful_voice_verification():
     assert "printf '%s" in installer
     assert 'v5_cis_base_nostress.ready' in installer
     assert 'v5_cis_base_nostress.ready' in startup
-    assert 'Silero NOT verified' in startup
-    assert 'FREE_V3_ENGINE=piper' in startup
+    assert 'Ekaterina voice is NOT installed/verified' in startup
+    assert 'export TTS_ENGINE=silero' in startup
+    assert 'export SILERO_SPEAKER=ru_ekaterina' in startup
+    assert 'exit 1' in startup

@@ -15,55 +15,20 @@ set -a
 source "$ENV_FILE"
 set +a
 export OLLAMA_MODEL_V3="$(printenv OLLAMA_MODEL_V3 || echo qwen3.5:4b)"
-# Use the free, local MIT Silero voice automatically once installed.
-# Keep the existing Piper fallback until the Silero model passes its installer.
+# V3 trial uses ONLY free local Ekaterina. Never silently revert to Denis.
+# The installer verifies actual Russian synthesis before creating the marker.
 SILERO_MODEL_PATH="$HOME/.local/share/zvonko/voices/v5_cis_base_nostress.jit"
 SILERO_READY="$HOME/.local/share/zvonko/voices/v5_cis_base_nostress.ready"
-FREE_V3_ENGINE=piper
-if [[ -s "$SILERO_MODEL_PATH" && -s "$SILERO_READY" ]]; then
-  FREE_V3_ENGINE=silero
-fi
-export TTS_ENGINE="${ZVONKO_VOICE_BACKEND:-$FREE_V3_ENGINE}"
-if [[ "$TTS_ENGINE" == silero ]]; then
-  if [[ ! -s "$SILERO_MODEL_PATH" || ! -s "$SILERO_READY" ]]; then
-    echo 'Silero NOT verified. Run: bash install-silero-v3-wsl.sh' >&2
-    exit 1
-  fi
-  export SILERO_MODEL_PATH
-  export SILERO_SPEAKER="${ZVONKO_SILERO_SPEAKER:-ru_ekaterina}"
-  case "$SILERO_SPEAKER" in
-    ru_ekaterina|ru_eduard|ru_kejilgan) ;;
-    *) echo 'Invalid free Silero voice. Try ru_ekaterina, ru_eduard or ru_kejilgan.' >&2; exit 1 ;;
-  esac
-  echo "V3 free local Silero voice: $SILERO_SPEAKER (MIT license)"
-fi
-# Optional paid TTS remains disabled unless explicitly enabled with credentials.
-if [[ "$TTS_ENGINE" == elevenlabs ]]; then
-  if [[ "${ALLOW_CLOUD_TTS:-false}" != true ]]; then
-    echo 'Cloud voice not authorized. Run bash configure-elevenlabs-wsl.sh' >&2; exit 1
-  fi
-  echo 'Cloud ElevenLabs voice enabled: AI reply TEXT leaves the computer.'
-fi
-# Private, independently selected voice for the v3 trial. Never modify the
-# shared ai.env: extension 200 can keep its existing TTS configuration.
-VOICE_FILE="$HOME/.config/zvonko/v3-voice"
-V3_PIPER_VOICE="${ZVONKO_V3_PIPER_VOICE:-}"
-if [[ -z "$V3_PIPER_VOICE" && -f "$VOICE_FILE" ]]; then
-  IFS= read -r V3_PIPER_VOICE < "$VOICE_FILE" || true
-fi
-V3_PIPER_VOICE="${V3_PIPER_VOICE:-denis}"
-case "$V3_PIPER_VOICE" in
-  denis|dmitri|irina|ruslan) ;;
-  *) echo 'Invalid v3 Piper voice. Allowed: denis, dmitri, irina, ruslan.' >&2; exit 1 ;;
-esac
-export PIPER_VOICE_PATH="$HOME/.local/share/zvonko/voices/ru_RU-$V3_PIPER_VOICE-medium.onnx"
-if [[ "$TTS_ENGINE" == piper && ( ! -s "$PIPER_VOICE_PATH" || ! -s "$PIPER_VOICE_PATH.json" ) ]]; then
-  echo "V3 Piper $V3_PIPER_VOICE not installed: bash select-v3-voice-wsl.sh $V3_PIPER_VOICE" >&2
+if [[ ! -s "$SILERO_MODEL_PATH" || ! -s "$SILERO_READY" ]]; then
+  echo 'ERROR: Ekaterina voice is NOT installed/verified. Refusing to start with Denis.' >&2
+  echo 'Download/verify it first: bash install-silero-v3-wsl.sh' >&2
+  echo 'If official download times out, download v5_cis_base_nostress.jit in Windows browser and use ZVONKO_LOCAL_SILERO_FILE=/mnt/c/.../v5_cis_base_nostress.jit.' >&2
   exit 1
 fi
-if [[ "$TTS_ENGINE" == piper ]]; then
-  echo "V3 local voice: $V3_PIPER_VOICE (fallback; Silero not installed or not selected)"
-fi
+export TTS_ENGINE=silero
+export SILERO_MODEL_PATH
+export SILERO_SPEAKER=ru_ekaterina
+echo 'Zvonko V3 voice: Silero ru_ekaterina. Denis/Piper disabled.'
 echo 'Starting V3. Wait for Connected to local Asterisk ARI, then call 201 in MicroSIP.'
 echo 'Original 200 can still run separately. Ctrl+C stops only V3.'
 exec .venv/bin/python -u server_v3.py
