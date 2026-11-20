@@ -31,6 +31,8 @@ class Config:
     elevenlabs_model:str=field(default_factory=lambda:env('ELEVENLABS_MODEL','eleven_flash_v2_5'))
     piper_voice_path:str=field(default_factory=lambda:env('PIPER_VOICE_PATH',os.path.expanduser('~/.local/share/zvonko/voices/ru_RU-dmitri-medium.onnx')))
     piper_length_scale:float=field(default_factory=lambda:float(env('PIPER_LENGTH_SCALE','0.95')))
+    silero_model_path:str=field(default_factory=lambda:env('SILERO_MODEL_PATH',os.path.expanduser('~/.local/share/zvonko/voices/v5_cis_base_nostress.jit')))
+    silero_speaker:str=field(default_factory=lambda:env('SILERO_SPEAKER','ru_ekaterina'))
     sales_offer:str=field(default_factory=lambda:env('SALES_OFFER','профессиональные поломоечные машины VMD'))
     sales_goal:str=field(default_factory=lambda:env('SALES_GOAL','выяснить тип объекта, площадь, способ уборки и предложить подбор с живым специалистом'))
     tts_model:str=field(default_factory=lambda:env('TTS_MODEL','vosk-model-tts-ru-0.9-multi'))
@@ -47,13 +49,15 @@ class Config:
             raise ValueError('Admin API must bind to loopback')
         if not re.fullmatch('[a-zA-Z0-9_-]+',self.trunk_endpoint):
             raise ValueError('Invalid SIP trunk')
-        if self.tts_engine not in ('piper','vosk','elevenlabs'):
-            raise ValueError('TTS_ENGINE must be piper, vosk or elevenlabs')
+        if self.tts_engine not in ('piper','vosk','silero','elevenlabs'):
+            raise ValueError('TTS_ENGINE must be piper, vosk, silero or elevenlabs')
         if self.tts_engine=='elevenlabs':
             if not self.allow_cloud_tts:
                 raise ValueError('Set ALLOW_CLOUD_TTS=true explicitly before sending text to an external voice API')
             if not self.elevenlabs_api_key or not re.fullmatch(r'[A-Za-z0-9]{16,64}',self.elevenlabs_voice_id):
                 raise ValueError('Provide ELEVENLABS_API_KEY and a valid ELEVENLABS_VOICE_ID in private env')
+        if self.tts_engine=='silero' and self.silero_speaker not in ('ru_ekaterina','ru_eduard','ru_kejilgan'):
+            raise ValueError('Unsupported free Silero CIS voice')
         if not 0.75 <= self.piper_length_scale <= 1.25:
             raise ValueError('PIPER_LENGTH_SCALE must be between 0.75 and 1.25')
         if not 0<=self.vad_aggressiveness<=3:

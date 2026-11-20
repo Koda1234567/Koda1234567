@@ -18,7 +18,7 @@ import numpy as np
 from config import Config
 from sales import fast_sales_reply, sales_instruction
 from server import PhoneCall, PhoneServer, create_app
-from voice import quick_voice_reply, rms, stop_requested, ulaw_decode
+from voice import quick_voice_reply, stop_requested, ulaw_decode
 from v3_engine import stream_sales_response
 from knowledge_vmd import load_catalog, catalog_context, product_answer
 
@@ -29,24 +29,50 @@ class V3PhoneCall(PhoneCall):
     """Concurrent listening/response, interruptible short audio chunks."""
 
     def greeting(self)->str:
-        return ('Здравствуйте! Это Звонко, голосовой ИИ-консультант. '
-                'Мы подбираем поломоечные и подметальные машины VMD. '
-                'Какая уборка нужна вам?')
+        return ('Здравствуйте! Я голосовой ИИ-помощник Звонко. '
+                'Для какого объекта подбираете уборочную машину?')
 
     def __init__(self, manager: PhoneServer, channel_id: str, mode: str):
         super().__init__(manager, channel_id, mode)
         self.epoch = 0
         self.response_task: asyncio.Task | None = None
         self.utterance_started = 0.0
+        # MicroSIP speaker echo was triggering false caller turns and cutting
+        # off the greeting. V3 is half-duplex until proper AEC is available.
+        self._capture_ready = False
+        self._capture_blocked_until = 0.0
 
-    def _interrupt_outgoing(self) -> None:
-        """React to sustained caller voice, not an isolated packet of echo."""
-        self.interrupt.set()
-        if self.response_task and not self.response_task.done():
-            self.response_task.cancel()
+    def _reset_capture(self) -> None:
+        """Discard acoustic echo and partial VAD fragments between turns."""
+        self.frame_bytes.clear()
+        self.frames.clear()
+        self.pre_roll.clear()
+        self.voice_frames = 0
+        self.silent_frames = 0
+
+    async def say(self, text: str) -> None:
+        """Temporarily mute speech recognition while our own RTP audio plays.
+
+        This is deliberately half-duplex. Without acoustic echo cancellation,
+        allowing barge-in can falsely detect our own TTS from PC speakers.
+        """
+        self._capture_ready = False
+        self._reset_capture()
+        try:
+            await super().say(text)
+        finally:
+            self._capture_blocked_until = time.monotonic() + 0.7
+            self._reset_capture()
+            self._capture_ready = True
 
     def receive_audio(self, ulaw: bytes) -> None:
         if self.closed:
+            return
+        # Drop (not buffer) all local microphone audio while the assistant
+        # speaks and during the 700ms echo tail after it finishes.
+        if (not self._capture_ready or self.playing
+                or time.monotonic() < self._capture_blocked_until):
+            self._reset_capture()
             return
         self.frame_bytes.extend(ulaw)
         while len(self.frame_bytes) >= 160:
@@ -62,10 +88,6 @@ class V3PhoneCall(PhoneCall):
             if speaking:
                 self.voice_frames += 1
                 self.silent_frames = 0
-                # MicroSIP may leak TTS back into the mic; require >120ms
-                # of fairly strong voice before allowing barge-in.
-                if (self.playing and self.voice_frames >= 7 and rms(pcm) >= 450):
-                    self._interrupt_outgoing()
             elif self.frames:
                 self.silent_frames += 1
 

@@ -123,6 +123,7 @@ class SpeechPipeline:
         self.cfg=cfg;self.http=http
         self._whisper=None;self._vad=None;self._tts=None
         self._piper=None;self._piper_config=None
+        self._silero=None
         self._piper_lock=threading.Lock()
 
     def load_models(self):
@@ -138,6 +139,9 @@ class SpeechPipeline:
                 raise RuntimeError('Piper Russian voice missing. Run install-piper-wsl.sh first.')
             self._piper=PiperVoice.load(voice_path,use_cuda=False)
             self._piper_config=SynthesisConfig(length_scale=self.cfg.piper_length_scale)
+        elif self.cfg.tts_engine=='silero':
+            from silero_voice import load_silero_model
+            self._silero=load_silero_model(self.cfg.silero_model_path)
         elif self.cfg.tts_engine=='vosk':
             from vosk_tts import Model,Synth
             self._tts=Synth(Model(model_name=self.cfg.tts_model))
@@ -186,7 +190,7 @@ class SpeechPipeline:
         return concise_voice_reply(reply)
 
     async def synthesize(self,text:str)->np.ndarray:
-        if self._piper is not None or self.cfg.tts_engine=='elevenlabs':
+        if self._piper is not None or self.cfg.tts_engine in ('elevenlabs','silero'):
             chunks=[part async for part in self.stream_synthesize(text)]
             return np.concatenate(chunks) if chunks else np.empty(0,dtype=np.int16)
         if self._tts is None:raise RuntimeError('Vosk TTS not loaded')
@@ -252,6 +256,15 @@ class SpeechPipeline:
         """
         if self.cfg.tts_engine=='elevenlabs':
             async for pcm in self._stream_elevenlabs(text):
+                yield pcm
+            return
+        if self.cfg.tts_engine=='silero':
+            if self._silero is None:
+                raise RuntimeError('Silero voice was not loaded')
+            from silero_voice import synthesize_silero_8k
+            pcm = await asyncio.to_thread(
+                synthesize_silero_8k, self._silero, text, self.cfg.silero_speaker)
+            if len(pcm):
                 yield pcm
             return
         if self._piper is None:
