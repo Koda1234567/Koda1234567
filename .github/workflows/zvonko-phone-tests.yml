@@ -36,3 +36,5 @@ jobs:
           bash -n zvonko/telephony/install-piper-wsl.sh
           bash -n zvonko/telephony/setup-v3-wsl.sh
           bash -n zvonko/telephony/start-v3-wsl.sh
+          bash -n zvonko/telephony/select-v3-voice-wsl.sh
+          bash -n zvonko/telephony/install-silero-v3-wsl.sh
