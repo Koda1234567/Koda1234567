@@ -70,3 +70,17 @@ def test_v3_launch_prefers_offline_silero_but_never_changes_extension_200():
     assert 'install-silero-v3-wsl.sh' in shell
     assert 'start-local-ai-wsl.sh' not in shell
     assert 'systemctl restart asterisk' not in shell
+
+
+def test_offline_installer_requires_successful_voice_verification():
+    """Incomplete or timed-out Silero downloads never activate a new voice."""
+    folder = Path(__file__).resolve().parents[1]
+    installer = (folder / 'install-silero-v3-wsl.sh').read_text()
+    startup = (folder / 'start-v3-wsl.sh').read_text()
+    assert 'ZVONKO_LOCAL_SILERO_FILE' in installer
+    assert 'SILERO TEST PASSED' in installer
+    assert "printf '%s" in installer
+    assert 'v5_cis_base_nostress.ready' in installer
+    assert 'v5_cis_base_nostress.ready' in startup
+    assert 'Silero NOT verified' in startup
+    assert 'FREE_V3_ENGINE=piper' in startup
