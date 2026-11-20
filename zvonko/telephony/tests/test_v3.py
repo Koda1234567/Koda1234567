@@ -60,3 +60,15 @@ def test_v3_independent_routing_is_in_stasis_app():
     assert 'exten => 201,1' in text
     assert '200 route not found' in text or 'Original 200 route not found' in text
     assert "systemctl restart asterisk" not in text
+
+
+def test_live_agent_uses_latest_local_brain_without_paid_api():
+    from pathlib import Path
+    folder=Path(__file__).resolve().parents[1]
+    for filename in ('setup-v3-wsl.sh','start-v3-wsl.sh','server_v3.py'):
+        assert 'qwen3.5:4b' in (folder/filename).read_text()
+    source=(folder/'v3_engine.py').read_text()
+    assert "'think': False" in source
+    assert "'stream': True" in source
+    assert "'num_ctx': 4096" in source
+    assert "'keep_alive': '30m'" in source
