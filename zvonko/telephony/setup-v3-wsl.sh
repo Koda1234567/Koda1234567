@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 DIAL=/etc/asterisk/extensions.conf
 ENV_FILE="$HOME/.config/zvonko/ai.env"
 VOICE_DIR="$HOME/.local/share/zvonko/voices"
-MODEL="$(printenv OLLAMA_MODEL_V3 || echo qwen3:4b)"
+MODEL="$(printenv OLLAMA_MODEL_V3 || echo qwen3.5:4b)"
 if [[ ! -f "$ENV_FILE" || ! -x .venv/bin/python ]]; then
   echo 'Existing local AI setup missing; do not reinstall Asterisk.' >&2
   exit 1
@@ -34,7 +34,7 @@ if [[ ! -s "$VOICE_DIR/$VOICE_ID.onnx" || ! -s "$VOICE_DIR/$VOICE_ID.onnx.json" 
   echo 'Alternative voice not downloaded; 200 untouched.' >&2
   exit 1
 fi
-echo "=== Pulling stronger language model $MODEL ==="
+echo "=== Downloading strong local B2B model: $MODEL ==="
 ollama pull "$MODEL"
 sudo -v
 if ! sudo test -f "$DIAL"; then
