@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 DIAL=/etc/asterisk/extensions.conf
 ENV_FILE="$HOME/.config/zvonko/ai.env"
 VOICE_DIR="$HOME/.local/share/zvonko/voices"
-MODEL="$(printenv OLLAMA_MODEL_V3 || echo qwen2.5:3b)"
+MODEL="$(printenv OLLAMA_MODEL_V3 || echo qwen3:4b)"
 if [[ ! -f "$ENV_FILE" || ! -x .venv/bin/python ]]; then
   echo 'Existing local AI setup missing; do not reinstall Asterisk.' >&2
   exit 1
