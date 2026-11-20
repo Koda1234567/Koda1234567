@@ -28,6 +28,11 @@ log = logging.getLogger('zvonko.v3')
 class V3PhoneCall(PhoneCall):
     """Concurrent listening/response, interruptible short audio chunks."""
 
+    def greeting(self)->str:
+        return ('Здравствуйте! Это Звонко, голосовой ИИ-консультант. '
+                'Мы подбираем поломоечные и подметальные машины VMD. '
+                'Какая уборка нужна вам?')
+
     def __init__(self, manager: PhoneServer, channel_id: str, mode: str):
         super().__init__(manager, channel_id, mode)
         self.epoch = 0
