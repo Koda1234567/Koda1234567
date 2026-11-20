@@ -80,7 +80,17 @@ ZVONKO_DOWNLOAD_PROXY=http://127.0.0.1:10801 bash install-silero-v3-wsl.sh
 bash start-v3-wsl.sh
 ```
 
-Если XRay-прокси не нужен, можно запустить `bash install-silero-v3-wsl.sh` без переменной. После `SILERO READY` стартовый скрипт сам выберет бесплатный Silero. Позвоните **201** из MicroSIP. Исходный номер 200, общая настройка `ai.env` и конфигурация Asterisk не меняются.
+Если XRay-прокси не нужен, можно запустить `bash install-silero-v3-wsl.sh` без переменной.
+
+Если официальный сервер Silero отвечает `curl: (28) SSL connection timeout`, это **не установка нового голоса**: v3 остаётся на Piper Denis. Для обхода сетевого сбоя скачайте через браузер Windows **официальный** файл [v5_cis_base_nostress.jit](https://models.silero.ai/models/tts/ru/v5_cis_base_nostress.jit), затем укажите его путь из WSL:
+
+```bash
+ZVONKO_LOCAL_SILERO_FILE="/mnt/c/Users/ВАШ_ПОЛЬЗОВАТЕЛЬ/Downloads/v5_cis_base_nostress.jit" bash install-silero-v3-wsl.sh
+```
+
+Вместо `ВАШ_ПОЛЬЗОВАТЕЛЬ` подставьте имя каталога профиля Windows или перенесите загруженный файл в доступную папку WSL. Инсталлятор не заменяет существующие файлы Asterisk, выполняет реальный синтез и печатает `SILERO READY` только после успешной проверки. Если нового голоса нет, запуск выводит `V3 local voice: denis (fallback; Silero not installed or not selected)`. Для гарантированного запуска **только с новой Екатериной** используйте `ZVONKO_VOICE_BACKEND=silero bash start-v3-wsl.sh`: при отсутствии проверенной модели скрипт остановится с объяснением, а не переключится молча.
+
+ После `SILERO READY` стартовый скрипт сам выберет бесплатный Silero. Позвоните **201** из MicroSIP. Исходный номер 200, общая настройка `ai.env` и конфигурация Asterisk не меняются.
 
 Для сравнения других голосов той же бесплатной модели можно запускать `ZVONKO_SILERO_SPEAKER=ru_eduard bash start-v3-wsl.sh` (мужской голос) или `ZVONKO_SILERO_SPEAKER=ru_kejilgan bash start-v3-wsl.sh` (женский). Если Silero не понравится, возврат к предыдущему бесплатному Piper: `ZVONKO_VOICE_BACKEND=piper bash start-v3-wsl.sh`.
 
