@@ -1,0 +1,219 @@
+{
+  "schema_version": 1,
+  "brand": "VMD",
+  "sources": [
+    "https://vmdrussia.ru/",
+    "https://vmdrussia.ru/rabota-bez-prostoev-blagodarya-nalichiyu-zapchastej",
+    "https://vmdrussia.ru/bystro-nezametno-bezuprechno"
+  ],
+  "disclaimer": "Каталог по открытым материалам VMD, не подтверждает наличие, актуальную цену или право продажи конкретной модификации. Площади кейсов не равны паспортной производительности.",
+  "price_policy": "Цены, маржа, скидка поставщика и наличие не публикуются без подтверждённого актуального прайса и разрешения продавца.",
+  "products": [
+    {
+      "sku": "VMD F-mop",
+      "category": "wet",
+      "tier": "compact",
+      "summary": "Компактная поломоечная машина для входных зон, небольших помещений и тесных проходов.",
+      "traits": [
+        "манёвренная",
+        "для небольших помещений"
+      ],
+      "examples": [
+        "магазин 500 м² (кейс VMD)",
+        "медицинские и входные зоны"
+      ],
+      "source": "https://vmdrussia.ru/bystro-nezametno-bezuprechno",
+      "price_rub": null,
+      "stock_status": "не проверено"
+    },
+    {
+      "sku": "VMD F60 C52",
+      "category": "wet",
+      "tier": "medium",
+      "summary": "Сетевая версия поломоечной машины F60 для влажной уборки, когда доступна розетка.",
+      "traits": [
+        "питание от сети",
+        "машина толкаемого типа"
+      ],
+      "examples": [
+        "помещения с доступом к сети"
+      ],
+      "source": "https://vmdrussia.ru/",
+      "price_rub": null,
+      "stock_status": "не проверено"
+    },
+    {
+      "sku": "VMD F60 B52",
+      "category": "wet",
+      "tier": "medium",
+      "summary": "Аккумуляторная машина F60 для автономной влажной уборки; есть кейс склада площадью 2500 м².",
+      "traits": [
+        "аккумуляторная",
+        "машина толкаемого типа"
+      ],
+      "examples": [
+        "склад 2500 м² (кейс VMD)",
+        "цех с узкими проходами (кейс VMD)"
+      ],
+      "source": "https://vmdrussia.ru/rabota-bez-prostoev-blagodarya-nalichiyu-zapchastej",
+      "price_rub": null,
+      "stock_status": "не проверено"
+    },
+    {
+      "sku": "VMD F60 BT52",
+      "category": "wet",
+      "tier": "medium",
+      "summary": "Версия F60 с приводом хода, снижает нагрузку на оператора при интенсивной влажной уборке.",
+      "traits": [
+        "привод хода",
+        "аккумуляторная версия линейки F60"
+      ],
+      "examples": [
+        "теплица 6000 м² (кейс VMD)"
+      ],
+      "source": "https://vmdrussia.ru/uzkie-prokhody--ne-problema",
+      "price_rub": null,
+      "stock_status": "не проверено"
+    },
+    {
+      "sku": "VMD F80 BT58",
+      "category": "wet",
+      "tier": "large",
+      "summary": "Компактная поломоечная машина с местом для оператора и приводом задних колёс.",
+      "traits": [
+        "место оператора",
+        "для крупных объектов"
+      ],
+      "examples": [
+        "торговые и производственные площади"
+      ],
+      "source": "https://vmdrussia.ru/",
+      "price_rub": null,
+      "stock_status": "не проверено"
+    },
+    {
+      "sku": "VMD F80 BT70",
+      "category": "wet",
+      "tier": "large",
+      "summary": "Поломоечная машина с двумя щётками и широким скребком для масштабных площадей.",
+      "traits": [
+        "две щётки",
+        "для крупных объектов"
+      ],
+      "examples": [
+        "многоэтажный торговый центр (кейс VMD)"
+      ],
+      "source": "https://vmdrussia.ru/uborka-trekh-etazhnogo-tcz-s-bolshoj-ploshhadyu",
+      "price_rub": null,
+      "stock_status": "не проверено"
+    },
+    {
+      "sku": "VMD F130 BT80",
+      "category": "wet",
+      "tier": "large",
+      "summary": "Автоматическая поломоечная машина с двумя щётками и вакуумной балкой для средних и больших площадей.",
+      "traits": [
+        "две щётки",
+        "привод задних колёс"
+      ],
+      "examples": [
+        "аэропорт (кейс VMD)"
+      ],
+      "source": "https://vmdrussia.ru/",
+      "price_rub": null,
+      "stock_status": "не проверено"
+    },
+    {
+      "sku": "VMD F200 BT90",
+      "category": "wet",
+      "tier": "extra",
+      "summary": "Поломоечная машина для больших складов, производств, аэропортов и вокзалов.",
+      "traits": [
+        "для крупных площадей",
+        "трёхступенчатый вакуумный мотор"
+      ],
+      "examples": [
+        "большие логистические объекты"
+      ],
+      "source": "https://vmdrussia.ru/",
+      "price_rub": null,
+      "stock_status": "не проверено"
+    },
+    {
+      "sku": "VMD S1",
+      "category": "dry",
+      "tier": "compact",
+      "summary": "Подметальная машина для сбора сухого мусора, пыли и песка.",
+      "traits": [
+        "сухое подметание"
+      ],
+      "examples": [
+        "сбор пыли и мусора"
+      ],
+      "source": "https://vmdrussia.ru/",
+      "price_rub": null,
+      "stock_status": "не проверено"
+    },
+    {
+      "sku": "VMD S2",
+      "category": "dry",
+      "tier": "compact",
+      "summary": "Подметальная техника линейки VMD для сухой уборки; отличия от S1 требуют технического листа.",
+      "traits": [
+        "сухое подметание"
+      ],
+      "examples": [
+        "пыль и мелкий мусор"
+      ],
+      "source": "https://vmdrussia.ru/",
+      "price_rub": null,
+      "stock_status": "не проверено"
+    },
+    {
+      "sku": "VMD C100",
+      "category": "dry",
+      "tier": "large",
+      "summary": "Автоматическая подметальная машина с вакуумной фильтрацией и орошением боковых щёток.",
+      "traits": [
+        "пылеподавление",
+        "сбор крупного и мелкого мусора"
+      ],
+      "examples": [
+        "улица, паркинг, производственная территория"
+      ],
+      "source": "https://vmdrussia.ru/",
+      "price_rub": null,
+      "stock_status": "не проверено"
+    },
+    {
+      "sku": "VMD C120P",
+      "category": "dry",
+      "tier": "large",
+      "summary": "Подметально-уборочная машина: представлена в официальном подборе для сухой уборки; технические характеристики уточняются.",
+      "traits": [
+        "сухая уборка"
+      ],
+      "examples": [
+        "площадки, на которых требуется подметание"
+      ],
+      "source": "https://vmdrussia.ru/",
+      "price_rub": null,
+      "stock_status": "не проверено"
+    },
+    {
+      "sku": "VMD C200",
+      "category": "dry",
+      "tier": "extra",
+      "summary": "Подметальная машина из линейки VMD для крупных объектов, детали и производительность уточняются.",
+      "traits": [
+        "сухая уборка на крупных объектах"
+      ],
+      "examples": [
+        "большие площадки"
+      ],
+      "source": "https://vmdrussia.ru/",
+      "price_rub": null,
+      "stock_status": "не проверено"
+    }
+  ]
+}
