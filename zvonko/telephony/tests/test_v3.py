@@ -78,7 +78,6 @@ def test_v3_greeting_is_not_interrupted_by_microphone_echo():
     """Echo packets while the assistant speaks must not enter STT/VAD."""
     import asyncio
     import time
-    from collections import deque
     from types import SimpleNamespace
     from unittest.mock import patch
 
@@ -87,13 +86,13 @@ def test_v3_greeting_is_not_interrupted_by_microphone_echo():
     manager = SimpleNamespace(cfg=Config(), ari=None, ai=ai)
     call = V3PhoneCall(manager, 'local-test', 'inbound')
     assert call._capture_ready is False
-    call.receive_audio(b'\\xff' * 320)
+    call.receive_audio(b'\xff' * 320)
     assert not call.frames and not call.frame_bytes and call.epoch == 0
 
     async def pretend_tts(self, text):
         self.playing = True
         try:
-            self.receive_audio(b'\\xff' * 320)
+            self.receive_audio(b'\xff' * 320)
             assert not self.frames and self.epoch == 0
         finally:
             self.playing = False
@@ -103,7 +102,7 @@ def test_v3_greeting_is_not_interrupted_by_microphone_echo():
 
     assert call._capture_ready is True
     assert call._capture_blocked_until > time.monotonic()
-    call.receive_audio(b'\\xff' * 320)
+    call.receive_audio(b'\xff' * 320)
     assert not call.frames and call.epoch == 0
 
 
@@ -115,7 +114,7 @@ def test_v3_listens_after_echo_guard_expires():
     call = V3PhoneCall(manager, 'local-test', 'inbound')
     call._capture_ready = True
     call._capture_blocked_until = 0.0
-    call.receive_audio(b'\\xff' * 480)
+    call.receive_audio(b'\xff' * 480)
     assert call.epoch == 1
     assert call.frames
     assert not call.interrupt.is_set()
