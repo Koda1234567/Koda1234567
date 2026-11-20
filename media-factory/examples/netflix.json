@@ -1,0 +1,20 @@
+{
+  "slug": "netflix-dvd-to-streaming",
+  "title": "Как Netflix превратился из DVD-сервиса в стриминг",
+  "hook": "Netflix начинал с дисков. Что изменилось?",
+  "facts": [
+    {
+      "text": "Компания появилась в 1997 году, а сайт запустился в 1998-м.",
+      "source": "https://www.netflix.com/tudum/articles/netflix-trivia-25th-anniversary"
+    },
+    {
+      "text": "В 2007 году Netflix начал показывать фильмы через интернет.",
+      "source": "https://s22.q4cdn.com/959853165/files/doc_financials/annual_reports/AR_10K_final_2007.pdf"
+    }
+  ],
+  "takeaway": "Главный урок: бизнес-модель может меняться, даже когда бренд остаётся прежним.",
+  "sources": [
+    "https://www.netflix.com/tudum/articles/netflix-trivia-25th-anniversary",
+    "https://s22.q4cdn.com/959853165/files/doc_financials/annual_reports/AR_10K_final_2007.pdf"
+  ]
+}

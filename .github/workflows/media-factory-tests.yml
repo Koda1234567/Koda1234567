@@ -1,0 +1,38 @@
+name: Media Factory prototype tests
+
+on:
+  push:
+    paths:
+      - 'media-factory/**'
+      - '.github/workflows/media-factory-tests.yml'
+  pull_request:
+    paths:
+      - 'media-factory/**'
+      - '.github/workflows/media-factory-tests.yml'
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: media-factory
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+      - name: Install FFmpeg video renderer
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Test offline multi-stage pipeline
+        run: python -m unittest discover -s tests -v
+      - name: Build demo preview
+        run: python factory.py render --topic examples/netflix.json --output outputs/netflix
+      - name: Check generated video and draft packages
+        run: |
+          test -s outputs/netflix/preview.mp4
+          test -s outputs/netflix/drafts/youtube.json
+          test -s outputs/netflix/drafts/tiktok.json
+          test -s outputs/netflix/drafts/vk.json
+          test -s outputs/netflix/drafts/instagram.json
