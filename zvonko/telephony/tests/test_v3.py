@@ -118,3 +118,91 @@ def test_v3_listens_after_echo_guard_expires():
     assert call.epoch == 1
     assert call.frames
     assert not call.interrupt.is_set()
+
+
+def test_v3_does_not_lose_reply_to_new_microphone_packets():
+    """Regression: once STT starts, RTP fragments cannot cancel the answer."""
+    import asyncio
+    from types import SimpleNamespace
+
+    async def test_case():
+        count = 0
+        def speech_frame(_):
+            nonlocal count
+            count += 1
+            return count <= 30
+
+        async def transcribe(_):
+            await asyncio.sleep(0.04)
+            return 'Что вы продаёте?'
+
+        ai = SimpleNamespace(speech_frame=speech_frame,
+                             transcribe=transcribe, http=None)
+        cfg = Config(ari_password='test', admin_token='x'*32)
+        manager = SimpleNamespace(cfg=cfg, ari=None, ai=ai)
+        call = V3PhoneCall(manager, 'one-test', 'inbound')
+        call._capture_ready = True
+        spoken = []
+
+        async def record_speech(text):
+            spoken.append(text)
+            await asyncio.sleep(0.04)
+
+        call.say = record_speech
+        # 30 speech frames (20ms) + 22 frames of silence closes the question.
+        call.receive_audio(b'\xff' * (160 * 52))
+        assert call._processing_turn is True
+        epoch = call.epoch
+        # Before STT returns, fake another entire utterance from microphone
+        # echo. The old code would start a second turn and cancel the first.
+        call.receive_audio(b'\xff' * (160 * 50))
+        assert call.epoch == epoch
+        await asyncio.wait_for(call.turn_task, timeout=1)
+        assert len(spoken) == 1, spoken
+        assert 'VMD' in spoken[0] or 'ви эм ди' in spoken[0].casefold()
+        assert call._processing_turn is False
+        assert call._capture_ready is True
+
+    asyncio.run(test_case())
+
+
+def test_v3_speaks_if_local_model_stays_silent():
+    """A local model timeout must speak an audible retry, not wait forever."""
+    import asyncio
+    import numpy as np
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    async def transcribe(_):
+        return 'У меня нестандартная задача'
+
+    async def slow_response(*args, **kwargs):
+        await asyncio.sleep(60)
+        yield 'Поздний ответ'
+
+    async def test_case():
+        ai = SimpleNamespace(transcribe=transcribe, http=None)
+        cfg = Config(ari_password='test', admin_token='x'*32)
+        manager = SimpleNamespace(cfg=cfg, ari=None, ai=ai)
+        call = V3PhoneCall(manager, 'slow-test', 'inbound')
+        call.epoch = 1
+        call._processing_turn = True
+        spoken = []
+
+        async def record_speech(text):
+            spoken.append(text)
+
+        call.say = record_speech
+        with patch('server_v3.product_answer', return_value=None), \
+             patch('server_v3.quick_voice_reply', return_value=None), \
+             patch('server_v3.fast_sales_reply', return_value=None), \
+             patch('server_v3.stream_sales_response', slow_response), \
+             patch('server_v3.V3_FIRST_PHRASE_TIMEOUT', 0.03):
+            await asyncio.wait_for(
+                call.handle_turn(np.zeros(8000, dtype=np.int16), 1),
+                timeout=1)
+        assert len(spoken) == 1
+        assert 'Повторите' in spoken[0]
+        assert call._processing_turn is False
+
+    asyncio.run(test_case())
