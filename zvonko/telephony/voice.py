@@ -138,9 +138,14 @@ class SpeechPipeline:
                 raise RuntimeError('Piper Russian voice missing. Run install-piper-wsl.sh first.')
             self._piper=PiperVoice.load(voice_path,use_cuda=False)
             self._piper_config=SynthesisConfig(length_scale=self.cfg.piper_length_scale)
-        else:
+        elif self.cfg.tts_engine=='vosk':
             from vosk_tts import Model,Synth
             self._tts=Synth(Model(model_name=self.cfg.tts_model))
+        elif self.cfg.tts_engine=='elevenlabs':
+            # Cloud TTS is explicitly gated by Config.validate(); no local voice loaded.
+            pass
+        else:
+            raise RuntimeError('Unknown speech engine')
 
     def speech_frame(self,pcm:np.ndarray)->bool:
         if self._vad is None:raise RuntimeError('Load speech models before calls')
@@ -181,7 +186,7 @@ class SpeechPipeline:
         return concise_voice_reply(reply)
 
     async def synthesize(self,text:str)->np.ndarray:
-        if self._piper is not None:
+        if self._piper is not None or self.cfg.tts_engine=='elevenlabs':
             chunks=[part async for part in self.stream_synthesize(text)]
             return np.concatenate(chunks) if chunks else np.empty(0,dtype=np.int16)
         if self._tts is None:raise RuntimeError('Vosk TTS not loaded')
@@ -201,12 +206,54 @@ class SpeechPipeline:
             finally:Path(path).unlink(missing_ok=True)
         return await asyncio.to_thread(run)
 
+    async def _stream_elevenlabs(self,text:str):
+        """Explicit opt-in cloud voice: stream raw PCM16 at 16kHz to 8kHz RTP.
+
+        Only the AI-generated text is sent; caller audio/recordings stay local.
+        The user must supply a valid key privately and authorize cloud TTS.
+        """
+        if not self.cfg.allow_cloud_tts:
+            raise RuntimeError('Cloud TTS requires explicit permission')
+        import re as _re
+        if not _re.fullmatch(r'[A-Za-z0-9]{16,64}',self.cfg.elevenlabs_voice_id):
+            raise ValueError('Invalid voice ID')
+        url=('https://api.elevenlabs.io/v1/text-to-speech/'
+             +self.cfg.elevenlabs_voice_id+'/stream')
+        query={'output_format':'pcm_16000'}
+        payload={'text':normalize_tts_text(text),
+                 'model_id':self.cfg.elevenlabs_model,
+                 'language_code':'ru'}
+        headers={'xi-api-key':self.cfg.elevenlabs_api_key,
+                 'Content-Type':'application/json'}
+        timeout=aiohttp.ClientTimeout(total=25,connect=6,sock_read=15)
+        async with self.http.post(url,headers=headers,params=query,
+                                  json=payload,timeout=timeout) as response:
+            if response.status!=200:
+                # Do not log any response text: it may include account metadata.
+                raise RuntimeError(f'Cloud voice HTTP {response.status}')
+            leftover=bytearray()
+            async for data in response.content.iter_chunked(3200):
+                leftover.extend(data)
+                while len(leftover)>=3200:
+                    pcm=np.frombuffer(bytes(leftover[:3200]),dtype='<i2')
+                    del leftover[:3200]
+                    yield np.clip(resample_poly(pcm.astype(np.float32),1,2),
+                                  -32768,32767).astype(np.int16)
+            if len(leftover)>=2:
+                pcm=np.frombuffer(bytes(leftover[:len(leftover)//2*2]),dtype='<i2')
+                yield np.clip(resample_poly(pcm.astype(np.float32),1,2),
+                              -32768,32767).astype(np.int16)
+
     async def stream_synthesize(self,text:str):
         """Yield PCM16 at 8kHz as a Piper voice generates each speech chunk.
 
         Piper runs on CPU while Ollama uses the GPU. No waveform needs to be
         fully generated before the first audio packet reaches the SIP caller.
         """
+        if self.cfg.tts_engine=='elevenlabs':
+            async for pcm in self._stream_elevenlabs(text):
+                yield pcm
+            return
         if self._piper is None:
             yield await self.synthesize(text)
             return
