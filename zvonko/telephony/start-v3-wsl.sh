@@ -14,7 +14,7 @@ fi
 set -a
 source "$ENV_FILE"
 set +a
-export OLLAMA_MODEL_V3="$(printenv OLLAMA_MODEL_V3 || echo qwen3:4b)"
+export OLLAMA_MODEL_V3="$(printenv OLLAMA_MODEL_V3 || echo qwen3.5:4b)"
 # Optional premium cloud voice is disabled by default and requires explicit
 # authorization + a private key in ~/.config/zvonko/ai.env.
 export TTS_ENGINE="${ZVONKO_VOICE_BACKEND:-piper}"
