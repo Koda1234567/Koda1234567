@@ -26,7 +26,8 @@ log = logging.getLogger('zvonko.v3')
 
 # The local GPU sometimes needs several seconds to produce its first phrase.
 # An explicit timeout prevents silent calls while Ollama is preparing a model.
-V3_FIRST_PHRASE_TIMEOUT = 10.0
+V3_FIRST_PHRASE_TIMEOUT = 6.0
+V3_EXTENDED_PHRASE_TIMEOUT = 18.0
 V3_NEXT_PHRASE_TIMEOUT = 4.0
 
 
@@ -188,10 +189,16 @@ class V3PhoneCall(PhoneCall):
             raise
 
     async def _stream_answer(self, epoch: int) -> None:
-        """Answer a caller even if the local language model starts slowly."""
+        """Speak quickly, then keep waiting for Qwen instead of cancelling it.
+
+        A lightweight local voice cue avoids dead air while a cold model is
+        generating. The first model request continues during the cue. We only
+        cancel after a bounded second wait, keeping calls finite.
+        """
         started = time.monotonic()
         spoken: list[str] = []
         stream = None
+        first_task = None
         try:
             instruction = (
                 catalog_context(self.history[-1]['content'], self.sales)
@@ -200,31 +207,36 @@ class V3PhoneCall(PhoneCall):
             )
             stream = stream_sales_response(
                 self.ai.http, self.cfg, list(self.history), instruction)
+            first_task = asyncio.create_task(anext(stream))
             try:
                 first = await asyncio.wait_for(
-                    anext(stream), timeout=V3_FIRST_PHRASE_TIMEOUT)
+                    asyncio.shield(first_task), timeout=V3_FIRST_PHRASE_TIMEOUT)
             except asyncio.TimeoutError:
-                log.warning('V3 local Qwen silent for %.1fs; giving audible fallback',
-                            V3_FIRST_PHRASE_TIMEOUT)
-                await self.say(
-                    'Мне нужно чуть больше времени на этот вопрос. '
-                    'Повторите его, пожалуйста.')
-                return
+                log.info('V3 Qwen first phrase delayed; audible cue, keep generating')
+                # Important: wait_for(shield(task)) does NOT cancel generation.
+                await self.say('Одну секунду, уточняю информацию.')
+                try:
+                    first = await asyncio.wait_for(
+                        first_task, timeout=V3_EXTENDED_PHRASE_TIMEOUT)
+                except asyncio.TimeoutError:
+                    log.warning('V3 Qwen still silent after extended wait; response unavailable')
+                    await self.say(
+                        'Сейчас не могу точно ответить на этот вопрос. '
+                        'Могу помочь с подбором техники по площади и типу уборки.')
+                    return
             except StopAsyncIteration:
-                log.warning('V3 local Qwen returned no spoken text')
-                await self.say('Повторите, пожалуйста, вопрос о технике.')
+                log.warning('V3 Ollama completed without spoken content')
+                await self.say('Ответ не сформировался. Уточните, пожалуйста, вопрос.')
                 return
 
             if self.closed or epoch != self.epoch:
                 return
-            log.info('V3 first answer text in %.2fs', time.monotonic()-started)
+            log.info('V3 first actual answer text in %.2fs', time.monotonic()-started)
             spoken.append(first)
             await self.say(first)
             if self.closed or epoch != self.epoch:
                 return
 
-            # A second phrase is optional; never leave the phone silent again
-            # while waiting for a slow model after the first sentence.
             try:
                 second = await asyncio.wait_for(
                     anext(stream), timeout=V3_NEXT_PHRASE_TIMEOUT)
@@ -237,6 +249,10 @@ class V3PhoneCall(PhoneCall):
             if spoken and not self.closed and self.epoch == epoch:
                 self.history.append({'role': 'assistant',
                                      'content': ' '.join(spoken)})
+        except StopAsyncIteration:
+            log.warning('V3 Ollama returned no usable spoken text')
+            if not self.closed:
+                await self.say('Не получилось сформировать ответ. Повторите вопрос.')
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -247,8 +263,11 @@ class V3PhoneCall(PhoneCall):
                         'Возникла техническая задержка. '
                         'Повторите, пожалуйста, вопрос.')
         finally:
+            if first_task is not None and not first_task.done():
+                first_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await first_task
             if stream is not None:
-                # Drop any unused generator without leaking its HTTP stream.
                 with contextlib.suppress(Exception):
                     await stream.aclose()
 
