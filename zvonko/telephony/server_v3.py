@@ -24,6 +24,11 @@ from knowledge_vmd import load_catalog, catalog_context, product_answer
 
 log = logging.getLogger('zvonko.v3')
 
+# The local GPU sometimes needs several seconds to produce its first phrase.
+# An explicit timeout prevents silent calls while Ollama is preparing a model.
+V3_FIRST_PHRASE_TIMEOUT = 10.0
+V3_NEXT_PHRASE_TIMEOUT = 4.0
+
 
 class V3PhoneCall(PhoneCall):
     """Concurrent listening/response, interruptible short audio chunks."""
@@ -41,6 +46,7 @@ class V3PhoneCall(PhoneCall):
         # off the greeting. V3 is half-duplex until proper AEC is available.
         self._capture_ready = False
         self._capture_blocked_until = 0.0
+        self._processing_turn = False
 
     def _reset_capture(self) -> None:
         """Discard acoustic echo and partial VAD fragments between turns."""
@@ -70,7 +76,7 @@ class V3PhoneCall(PhoneCall):
             return
         # Drop (not buffer) all local microphone audio while the assistant
         # speaks and during the 700ms echo tail after it finishes.
-        if (not self._capture_ready or self.playing
+        if (self._processing_turn or not self._capture_ready or self.playing
                 or time.monotonic() < self._capture_blocked_until):
             self._reset_capture()
             return
@@ -103,13 +109,13 @@ class V3PhoneCall(PhoneCall):
                                 or len(self.frames) >= 750):
                 samples = np.concatenate(self.frames)
                 turn = self.epoch
-                if self.turn_task and not self.turn_task.done():
-                    self.turn_task.cancel()
+                # Serialize a complete user question -> speech response.
+                # Otherwise late microphone fragments repeatedly cancel the
+                # first slow Ollama response, leaving the caller in silence.
+                self._processing_turn = True
+                self._capture_ready = False
+                self._reset_capture()
                 self.turn_task = asyncio.create_task(self.handle_turn(samples, turn))
-                self.frames = []
-                self.voice_frames = 0
-                self.silent_frames = 0
-                self.pre_roll.clear()
 
             if not speaking and not self.frames:
                 self.voice_frames = 0
@@ -124,39 +130,43 @@ class V3PhoneCall(PhoneCall):
             log.info('V3 recognized utterance in %.2fs, chars=%d',
                      time.monotonic() - started, len(heard))
 
-            # Stop any outdated spoken greeting or answer before replying.
-            if self.play_task and not self.play_task.done():
-                self.interrupt.set()
-                self.play_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await self.play_task
-            if self.response_task and not self.response_task.done():
-                self.response_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await self.response_task
-
+            # Only one request at a time; half-duplex until the spoken answer
+            # completes. Do not cancel an in-flight answer on raw mic noise.
             self.sales.observe(heard)
             self.history.append({'role': 'user', 'content': heard})
             if len(self.history) > 12:
                 self.history = self.history[-12:]
 
             if stop_requested(heard) or self.sales.caller_declined:
-                self.response_task = asyncio.create_task(
-                    self._speak_and_finish('Понял, не буду отвлекать. Всего доброго.', epoch))
+                log.info('V3 reply path: caller requested stop')
+                await self._speak_and_finish('Понял, не буду отвлекать. Всего доброго.', epoch)
                 return
 
             canned = (product_answer(heard, self.sales) or quick_voice_reply(heard)
                       or fast_sales_reply(heard, self.sales, self.cfg.sales_offer))
             if canned:
-                self.response_task = asyncio.create_task(
-                    self._speak_short(canned, epoch))
+                log.info('V3 reply path: verified catalogue or quick response')
+                await self._speak_short(canned, epoch)
                 return
 
-            self.response_task = asyncio.create_task(self._stream_answer(epoch))
+            log.info('V3 reply path: local Qwen, awaiting first spoken phrase')
+            await self._stream_answer(epoch)
         except asyncio.CancelledError:
             raise
         except Exception:
             log.exception('V3 recognition/dispatch failed')
+            if not self.closed:
+                with contextlib.suppress(Exception):
+                    await self.say('Не удалось обработать вопрос. Повторите, пожалуйста.')
+        finally:
+            # Never unlock the microphone before the completed answer.
+            self._processing_turn = False
+            if not self.closed:
+                self._capture_ready = True
+                self._reset_capture()
+                self._capture_blocked_until = max(
+                    self._capture_blocked_until, time.monotonic() + 0.7)
+                log.info('V3 turn finished; microphone enabled after echo guard')
 
     async def _speak_short(self, reply: str, epoch: int) -> None:
         if self.closed or self.epoch != epoch:
@@ -178,31 +188,69 @@ class V3PhoneCall(PhoneCall):
             raise
 
     async def _stream_answer(self, epoch: int) -> None:
+        """Answer a caller even if the local language model starts slowly."""
         started = time.monotonic()
-        spoken = []
+        spoken: list[str] = []
+        stream = None
         try:
-            instruction = (catalog_context(self.history[-1]['content'], self.sales)
-                           + '\n' + sales_instruction(
-                               self.sales, self.cfg.sales_offer, self.cfg.sales_goal))
-            async for phrase in stream_sales_response(
-                    self.ai.http, self.cfg, list(self.history), instruction):
-                if self.closed or epoch != self.epoch:
-                    return
-                if not spoken:
-                    log.info('V3 first answer text in %.2fs', time.monotonic()-started)
-                spoken.append(phrase)
-                await self.say(phrase)
+            instruction = (
+                catalog_context(self.history[-1]['content'], self.sales)
+                + '\n' + sales_instruction(
+                    self.sales, self.cfg.sales_offer, self.cfg.sales_goal)
+            )
+            stream = stream_sales_response(
+                self.ai.http, self.cfg, list(self.history), instruction)
+            try:
+                first = await asyncio.wait_for(
+                    anext(stream), timeout=V3_FIRST_PHRASE_TIMEOUT)
+            except asyncio.TimeoutError:
+                log.warning('V3 local Qwen silent for %.1fs; giving audible fallback',
+                            V3_FIRST_PHRASE_TIMEOUT)
+                await self.say(
+                    'Мне нужно чуть больше времени на этот вопрос. '
+                    'Повторите его, пожалуйста.')
+                return
+            except StopAsyncIteration:
+                log.warning('V3 local Qwen returned no spoken text')
+                await self.say('Повторите, пожалуйста, вопрос о технике.')
+                return
+
+            if self.closed or epoch != self.epoch:
+                return
+            log.info('V3 first answer text in %.2fs', time.monotonic()-started)
+            spoken.append(first)
+            await self.say(first)
+            if self.closed or epoch != self.epoch:
+                return
+
+            # A second phrase is optional; never leave the phone silent again
+            # while waiting for a slow model after the first sentence.
+            try:
+                second = await asyncio.wait_for(
+                    anext(stream), timeout=V3_NEXT_PHRASE_TIMEOUT)
+            except (StopAsyncIteration, asyncio.TimeoutError):
+                second = None
+            if second and not self.closed and epoch == self.epoch:
+                spoken.append(second)
+                await self.say(second)
+
             if spoken and not self.closed and self.epoch == epoch:
-                self.history.append({'role': 'assistant', 'content': ' '.join(spoken)})
-            elif not spoken and not self.closed and self.epoch == epoch:
-                await self.say('Уточните, пожалуйста, какая задача у вас сейчас?')
+                self.history.append({'role': 'assistant',
+                                     'content': ' '.join(spoken)})
         except asyncio.CancelledError:
             raise
         except Exception:
-            log.exception('V3 streaming answer failed')
+            log.exception('V3 local Qwen response failed')
             if not self.closed and self.epoch == epoch:
                 with contextlib.suppress(Exception):
-                    await self.say('Извините, возникла техническая заминка. Повторите вопрос.')
+                    await self.say(
+                        'Возникла техническая задержка. '
+                        'Повторите, пожалуйста, вопрос.')
+        finally:
+            if stream is not None:
+                # Drop any unused generator without leaking its HTTP stream.
+                with contextlib.suppress(Exception):
+                    await stream.aclose()
 
     async def close(self, hangup: bool = False) -> None:
         if self.response_task and self.response_task is not asyncio.current_task():
