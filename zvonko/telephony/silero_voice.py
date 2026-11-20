@@ -71,8 +71,19 @@ def synthesize_silero_8k(model, text: str, speaker: str) -> np.ndarray:
         speech = model(text_tensor, speaker_tensor)
 
     audio = np.asarray(speech.detach().cpu().numpy(), dtype=np.float32)
+    # The official TorchScript model returns a *batched* mono waveform.
+    # For a single requested voice it can be [1, samples], not [samples].
+    # Removing the singleton channel/batch axis is safe; mixing channels is not.
+    if audio.ndim == 2 and 1 in audio.shape:
+        audio = audio.reshape(-1)
     if audio.ndim != 1 or audio.size == 0 or not np.isfinite(audio).all():
-        raise RuntimeError("Silero produced invalid mono waveform")
+        raise RuntimeError(
+            f"Silero produced invalid mono waveform: shape={audio.shape}, "
+            f"dtype={audio.dtype}, finite={bool(np.isfinite(audio).all())}")
+    # The model was loaded and produced samples; avoid accidental all-silence
+    # due to a broken token mapping or model/output mismatch.
+    if np.max(np.abs(audio)) < 1e-7:
+        raise RuntimeError("Silero produced an empty/silent waveform")
 
     # 48kHz native => 8kHz for RTP: divide sample rate by six.
     pcm = resample_poly(audio, 1, 6)
