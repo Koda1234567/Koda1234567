@@ -72,3 +72,50 @@ def test_live_agent_uses_latest_local_brain_without_paid_api():
     assert "'stream': True" in source
     assert "'num_ctx': 4096" in source
     assert "'keep_alive': '30m'" in source
+
+
+def test_v3_greeting_is_not_interrupted_by_microphone_echo():
+    """Echo packets while the assistant speaks must not enter STT/VAD."""
+    import asyncio
+    import time
+    from collections import deque
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    ai = SimpleNamespace(speech_frame=lambda pcm: (_ for _ in ()).throw(
+        AssertionError('VAD must stay muted during playback')))
+    manager = SimpleNamespace(cfg=Config(), ari=None, ai=ai)
+    call = V3PhoneCall(manager, 'local-test', 'inbound')
+    assert call._capture_ready is False
+    call.receive_audio(b'\\xff' * 320)
+    assert not call.frames and not call.frame_bytes and call.epoch == 0
+
+    async def pretend_tts(self, text):
+        self.playing = True
+        try:
+            self.receive_audio(b'\\xff' * 320)
+            assert not self.frames and self.epoch == 0
+        finally:
+            self.playing = False
+
+    with patch.object(PhoneCall, 'say', pretend_tts):
+        asyncio.run(call.say('Здравствуйте! Это Звонко.'))
+
+    assert call._capture_ready is True
+    assert call._capture_blocked_until > time.monotonic()
+    call.receive_audio(b'\\xff' * 320)
+    assert not call.frames and call.epoch == 0
+
+
+def test_v3_listens_after_echo_guard_expires():
+    """Only genuine post-greeting audio can become a new recognized turn."""
+    from types import SimpleNamespace
+    ai = SimpleNamespace(speech_frame=lambda pcm: True)
+    manager = SimpleNamespace(cfg=Config(), ari=None, ai=ai)
+    call = V3PhoneCall(manager, 'local-test', 'inbound')
+    call._capture_ready = True
+    call._capture_blocked_until = 0.0
+    call.receive_audio(b'\\xff' * 480)
+    assert call.epoch == 1
+    assert call.frames
+    assert not call.interrupt.is_set()
