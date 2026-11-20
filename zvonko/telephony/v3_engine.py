@@ -5,10 +5,13 @@ Only locally hosted Ollama is used. No recording uploads or external calls.
 from __future__ import annotations
 import asyncio
 import json
+import logging
 import re
 from collections.abc import AsyncIterator
 from typing import Any
 import aiohttp
+
+log = logging.getLogger('zvonko.v3.llm')
 
 
 class SpeechChunker:
@@ -93,20 +96,23 @@ async def stream_sales_response(
         'Не придумывай фактов о наличии, ценах, происхождении, гарантиях, '
         'сертификации и сроках. Не обещай звонок, демонстрацию или КП, '
         'если никто их реально не оформил. '
-        'Достоверные данные о предложении: ' + cfg.product_info[:1000] + '. '
-        + guidance[:3600]
+        'Достоверные данные о предложении: ' + cfg.product_info[:450] + '. '
+        + guidance[:2400]
     )
     payload = {
         'model': cfg.ollama_model,
-        'messages': [{'role': 'system', 'content': prompt}] + history[-8:],
+        'messages': [{'role': 'system', 'content': prompt}] + history[-6:],
         'stream': True,
         # In live sales calls, skip hidden reasoning tokens to minimize silence.
         # The verified VMD catalog supplies factual grounding independently.
         'think': False,
         'keep_alive': '30m',
-        'options': {'num_predict': 100, 'num_ctx': 4096, 'temperature': 0.25},
+        'options': {'num_predict': 80, 'num_ctx': 4096, 'temperature': 0.25},
     }
     chunker = SpeechChunker()
+    # Only technical counters in logs: neither transcriptions nor responses.
+    log.info('Ollama request model=%s, prompt_chars=%d, previous_turns=%d',
+             cfg.ollama_model, len(prompt), len(history))
     async with http.post(
         cfg.ollama_url.rstrip('/') + '/api/chat',
         json=payload,
@@ -125,6 +131,15 @@ async def stream_sales_response(
                 if chunker.full:
                     return
             if event.get('done'):
+                # Ollama durations are nanoseconds; useful for distinguishing
+                # slow loading, prompt evaluation and actual token sampling.
+                log.info(
+                    'Ollama completed: load_s=%.2f prompt_s=%.2f decode_s=%.2f prompt_tokens=%d reply_tokens=%d',
+                    event.get('load_duration', 0) / 1e9,
+                    event.get('prompt_eval_duration', 0) / 1e9,
+                    event.get('eval_duration', 0) / 1e9,
+                    event.get('prompt_eval_count', 0),
+                    event.get('eval_count', 0))
                 break
     for phrase in chunker.flush():
         yield phrase
