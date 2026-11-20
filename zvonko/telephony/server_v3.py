@@ -29,9 +29,8 @@ class V3PhoneCall(PhoneCall):
     """Concurrent listening/response, interruptible short audio chunks."""
 
     def greeting(self)->str:
-        return ('Здравствуйте! Это Звонко, голосовой ИИ-консультант. '
-                'Мы подбираем поломоечные и подметальные машины VMD. '
-                'Какая уборка нужна вам?')
+        return ('Здравствуйте! Я голосовой ИИ-помощник Звонко. '
+                'Для какого объекта подбираете уборочную машину?')
 
     def __init__(self, manager: PhoneServer, channel_id: str, mode: str):
         super().__init__(manager, channel_id, mode)
