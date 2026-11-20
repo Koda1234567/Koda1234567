@@ -29,9 +29,10 @@ def load_catalog() -> dict[str, Any]:
         if not isinstance(sku,str) or not sku.startswith('VMD ') or sku in seen:
             raise ValueError('VMD catalog SKU missing or duplicated')
         seen.add(sku)
-        if model.get('source','').startswith('https://vmdrussia.ru/') is False:
+        if (not model.get('source','').startswith('https://vmdrussia.ru/')
+            and model.get('source')!='supplier_price_list_2026-05-27'):
             raise ValueError('Unverified source for '+sku)
-        if model.get('category') not in ('wet','dry'):
+        if model.get('category') not in ('wet','dry','specialty','accessory'):
             raise ValueError('Invalid product category '+sku)
     return data
 
@@ -109,7 +110,7 @@ def shortlist(text: str, state: Any, count: int=3) -> list[dict]:
             [p for p in products if p['category']=='dry'],state,'dry',text)[:1]
     if purpose=='unknown' and not getattr(state,'area_m2',None):
         return []
-    selected=[p for p in products if p['category']==purpose] if purpose in ('wet','dry') else products
+    selected=[p for p in products if p['category']==purpose] if purpose in ('wet','dry') else [p for p in products if p['category'] in ('wet','dry')]
     return _rank(selected,state,purpose,text)[:count]
 
 def catalog_context(text: str, state: Any) -> str:
@@ -118,14 +119,30 @@ def catalog_context(text: str, state: Any) -> str:
     models=shortlist(text,state)
     pieces=[
         'ПРОДАВЕЦ: независимый продавец оборудования VMD, не официальный сайт бренда.',
-        'АССОРТИМЕНТ: поломоечные (влажная уборка) и подметальные (сухая уборка) машины VMD.',
+        'АССОРТИМЕНТ: поломоечные (влажная уборка), подметальные (сухая уборка), роторные и эскалаторные машины, аккумуляторы VMD.',
         'МОДЕЛИ (публично представлены): '+', '.join(x['sku'] for x in data['products'])+'.',
         'ТОЧНЫЕ ПРАВИЛА: не называй цену, наличие, сроки, скидку, гарантии или производительность без подтверждённых данных; кейс — не паспортная максимальная площадь.',
         'Подбор предварительный; нужны площадь, тип загрязнений, пол, проходы, режим уборки, питание и приоритет клиента.',
     ]
     for item in models:
-        pieces.append(f"ПОДТВЕРЖДЁННАЯ МОДЕЛЬ {item['sku']}: {item['summary']} "
-                      f"Свойства: {', '.join(item['traits'])}. "
+        specs=item.get('specs',{})
+        shown=[]
+        for key,label,unit in [
+            ('cleaning_width_mm','рабочая ширина','мм'),
+            ('squeegee_width_mm','ширина скребка','мм'),
+            ('clean_water_l','чистая вода','л'),
+            ('waste_water_l','грязная вода','л'),
+            ('waste_container_l','мусоросборник','л'),
+            ('performance_m2_per_h','производительность по прайсу','м²/ч'),
+            ('power','питание','')]:
+            if key in specs:
+                shown.append(f"{label}: {specs[key]} {unit}".strip())
+        if 'performance_m2_per_h' in specs:
+            shown.append('Тип показателя: '+specs.get('performance_type','прайс поставщика'))
+        if specs.get('configs'):
+            shown.append('Комплектации: '+ '; '.join(specs['configs']))
+        pieces.append(f"МОДЕЛЬ {item['sku']}: {item['summary']} "
+                      f"Параметры: {'; '.join(shown[:9])}. "
                       f"Пример применения: {', '.join(item['examples'])}. "
                       f"Источник: {item['source']}. "
                       'Цена и наличие пока не подтверждены.')
@@ -149,9 +166,8 @@ def product_answer(text: str, state: Any) -> str | None:
         'какой ассортимент', 'какие товары','что за техника', 'какое оборудование',
         'чем занимаетесь','какие модели','что предлагаете','какие машины'))
     if generic:
-        return ('Мы подбираем поломоечные и подметальные машины VMD. '
-                'Есть компактные, аккумуляторные и машины для больших объектов. '
-                'Вам нужна влажная мойка пола или сухая уборка?')
+        return ('Мы продаём технику VMD: поломоечные, подметальные, роторные и эскалаторные машины, а также аккумуляторы. '
+                'Вам нужна влажная или сухая уборка?')
     if pricing and not mentioned:
         return ('Точная стоимость зависит от модели и комплектации. '
                 'Сначала подберём подходящую машину: нужна влажная или сухая уборка?')
