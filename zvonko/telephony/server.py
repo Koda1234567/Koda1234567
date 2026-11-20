@@ -81,6 +81,9 @@ class PhoneCall:
         self.sales=SalesState()
         self.closed=False
 
+    def greeting(self)->str:
+        return 'Здравствуйте! Это Звонко, голосовой ИИ-консультант. Подскажите, какая у вас задача?'
+
     async def setup(self):
         loop=asyncio.get_running_loop()
         self.audio_transport,_=await loop.create_datagram_endpoint(
@@ -106,9 +109,7 @@ class PhoneCall:
             self.timeout_task=asyncio.create_task(self.max_duration())
             welcome=('Здравствуйте! Это тестовый звонок ИИ-менеджера Звонко. '
                      'Вы сами запросили проверку. Какой вопрос о товаре вам интересен?'
-                     if self.mode=='manual-test' else
-                     'Здравствуйте! Это Звонко, голосовой ИИ-консультант. '
-                     'Подскажите, какая у вас задача?')
+                     if self.mode=='manual-test' else self.greeting())
             self.play_task=asyncio.create_task(self.say(welcome))
             log.info('Connected live call %s, media port %s',self.channel_id,port)
         except Exception:
