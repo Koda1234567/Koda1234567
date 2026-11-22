@@ -1,0 +1,112 @@
+name: JARVIS reports to Telegram
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'jarvis/reports/weekly-*.md'
+      - 'jarvis/reports/approval-*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Deliver report to private Telegram chat
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.JARVIS_TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.JARVIS_TELEGRAM_CHAT_ID }}
+          RUN_EVENT: ${{ github.event_name }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import re
+          import subprocess
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+          chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+          event = os.environ.get("RUN_EVENT")
+          if not token or not chat_id:
+              print("::warning::JARVIS Telegram secrets are not configured. See jarvis/TELEGRAM_SETUP.md")
+              if event == "workflow_dispatch":
+                  sys.exit(1)
+              sys.exit(0)
+
+          if not re.fullmatch(r"-?\d+", chat_id):
+              print("::error::JARVIS_TELEGRAM_CHAT_ID must be numeric.")
+              sys.exit(1)
+
+          if event == "workflow_dispatch":
+              message = ("✅ JARVIS — тест Telegram-подключения.\n\n"
+                         "Бот подключён. Проверенные еженедельные отчёты "
+                         "будут приходить сюда после публикации в GitHub.")
+          else:
+              try:
+                  changed = subprocess.check_output(
+                      ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+                      text=True
+                  ).splitlines()
+              except (OSError, subprocess.CalledProcessError):
+                  print("::error::Could not inspect changed files.")
+                  sys.exit(1)
+
+              allowed = re.compile(r"jarvis/reports/(weekly|approval)-\d{4}-\d{2}-\d{2}(?:-[a-z0-9_-]+)?\.md")
+              filenames = [p for p in changed if allowed.fullmatch(p)]
+              if not filenames:
+                  print("No new JARVIS report in this commit.")
+                  sys.exit(0)
+
+              report = pathlib.Path(filenames[-1])
+              if not report.is_file() or report.stat().st_size > 32768:
+                  print("::error::Missing report or report exceeds 32 KiB.")
+                  sys.exit(1)
+
+              body = report.read_text(encoding="utf-8").strip()
+              if not body:
+                  print("::error::Report is empty.")
+                  sys.exit(1)
+              report_url = ("https://github.com/Koda1234567/Koda1234567/blob/main/"
+                            + urllib.parse.quote(filenames[-1], safe="/"))
+              message = ("🤖 JARVIS — " + report.name + "\n\n"
+                         + body[:3100] + "\n\n"
+                         + "Подробности: " + report_url)
+
+          form = urllib.parse.urlencode({
+              "chat_id": chat_id,
+              "text": message,
+              "disable_web_page_preview": "true",
+          }).encode("utf-8")
+          endpoint = "https://api.telegram.org/bot" + token + "/sendMessage"
+          try:
+              request = urllib.request.Request(
+                  endpoint, data=form, method="POST",
+                  headers={"Content-Type": "application/x-www-form-urlencoded"}
+              )
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  result = json.load(response)
+              if not result.get("ok", False):
+                  raise RuntimeError("Telegram refused the message")
+              print("PASS: Telegram message delivered.")
+          except urllib.error.HTTPError as exc:
+              print("::error::Telegram HTTP error " + str(exc.code)
+                    + " (check bot token, chat ID and that you started the bot).")
+              sys.exit(1)
+          except (urllib.error.URLError, TimeoutError, RuntimeError, ValueError) as exc:
+              print("::error::Telegram delivery failed; check network and setup.")
+              sys.exit(1)
+          PY
