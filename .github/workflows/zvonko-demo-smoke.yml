@@ -42,7 +42,9 @@ jobs:
             await page.route('**/api/chat',async route=>{const b=route.request().postDataJSON();await route.fulfill({json:{answer:'Тестовый ответ: выберите удобное время.',action:b.text.includes('записаться')?'offer_slots':null}})});
             await page.goto('https://zvonko-ai.mishkafedotov09.workers.dev/demo');
             await page.screenshot({path:'screenshots/demo-mobile.png',fullPage:true});
-            await page.getByText('Попробуйте AI на реальном сценарии').waitFor();
+            await page.getByText('AI-администратор в действии').waitFor();
+            await page.getByRole('button',{name:'Получить ответ живого AI ↗'}).click();
+            await page.getByText('Тестовый ответ: выберите удобное время.').waitFor();
             await page.screenshot({path:'screenshots/chat-mobile.png',fullPage:true});
             await page.getByRole('button',{name:'Записаться ↗'}).click();
             await page.locator('[data-pickslot="10:00"]').click();
@@ -53,6 +55,8 @@ jobs:
             await page.getByText('Тестовая запись: Диагностика техники · завтра 10:00',{exact:true}).waitFor();
             assert.equal(errors.length,0,errors.join(';'));
             assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+2),'mobile overflow');
+            await page.getByRole('button',{name:'Закрыть'}).first().click();
+            await page.getByText('Закрыта',{exact:true}).first().waitFor();
             console.log('PASS mobile browser journey (mock AI), booking confirmation and lead');
           }finally{const desktop=await browser.newPage({viewport:{width:1440,height:900},deviceScaleFactor:1});await desktop.goto('https://zvonko-ai.mishkafedotov09.workers.dev/');await desktop.screenshot({path:'screenshots/home-desktop.png',fullPage:true});await desktop.goto('https://zvonko-ai.mishkafedotov09.workers.dev/demo');await desktop.screenshot({path:'screenshots/demo-desktop.png',fullPage:true});await browser.close()}
           JS
@@ -70,9 +74,9 @@ jobs:
           const base='https://zvonko-ai.mishkafedotov09.workers.dev';
           const health=await fetch(base+'/api/health',{signal:AbortSignal.timeout(20000)});
           assert.equal(health.status,200);
-          const h=await health.json();assert.equal(h.version,'2.3');assert.equal(h.ai,true);
+          const h=await health.json();assert.equal(h.version,'2.4');assert.equal(h.ai,true);
           const page=await fetch(base+'/demo',{signal:AbortSignal.timeout(20000)});
-          assert.equal(page.status,200);assert.match(await page.text(),/Попробуйте AI на реальном сценарии/);
+          assert.equal(page.status,200);assert.match(await page.text(),/AI-администратор в действии/);
           const chat=await fetch(base+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:'Сколько стоит диагностика?',context:{company:'Демо Сервис',product:'Ремонт техники',price:'Диагностика 800 рублей',faq:'09:00–19:00'},history:[]}),signal:AbortSignal.timeout(60000)});
           const d=await chat.json();assert.equal(chat.status,200,JSON.stringify(d));assert.ok(d.answer?.length);assert.match(d.answer,/800/);console.log('PASS public health, demo route and AI response');
           const book=await fetch(base+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:'Хочу записаться на завтра',context:{company:'Демо Сервис',product:'Ремонт техники',price:'Диагностика 800 рублей'},history:[]}),signal:AbortSignal.timeout(60000)});const b=await book.json();assert.equal(book.status,200,JSON.stringify(b));assert.equal(b.action,'offer_slots');console.log('PASS booking action');
