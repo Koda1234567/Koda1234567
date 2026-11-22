@@ -1,0 +1,42 @@
+name: Zvonko web demo smoke
+on:
+  push:
+    paths:
+      - 'zvonko/worker.js'
+      - '.github/workflows/zvonko-demo-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate worker and browser script syntax
+        run: |
+          node --input-type=module --check < zvonko/worker.js
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import vm from 'node:vm';
+          const code=fs.readFileSync('zvonko/worker.js','utf8');
+          const html=JSON.parse(code.match(/const PLATFORM_HTML=(.*);\nconst TELEPHONY_HTML=/)[1]);
+          new vm.Script(html.match(/<script>([\s\S]+)<\/script>/)[1]);
+          console.log('PASS browser syntax');
+          JS
+      - name: Check production health and real AI response
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          const base='https://zvonko-ai.mishkafedotov09.workers.dev';
+          const health=await fetch(base+'/api/health',{signal:AbortSignal.timeout(20000)});
+          assert.equal(health.status,200);
+          const h=await health.json();assert.equal(h.version,'2.1');assert.equal(h.ai,true);
+          const page=await fetch(base+'/demo',{signal:AbortSignal.timeout(20000)});
+          assert.equal(page.status,200);assert.match(await page.text(),/Демонстрация для клиента/);
+          const chat=await fetch(base+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:'Сколько стоит диагностика?',context:{company:'Демо Сервис',product:'Ремонт техники',price:'Диагностика 800 рублей',faq:'09:00–19:00'},history:[]}),signal:AbortSignal.timeout(60000)});
+          const d=await chat.json();assert.equal(chat.status,200,JSON.stringify(d));assert.ok(d.answer?.length);assert.match(d.answer,/800/);console.log('PASS public health, demo route and AI response');
+          JS
