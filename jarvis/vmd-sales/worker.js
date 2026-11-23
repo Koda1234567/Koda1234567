@@ -322,7 +322,8 @@ export default {
       const stats=await env.DB.prepare(
         "SELECT (SELECT count(*) FROM leads) total_leads, "+
         "(SELECT count(*) FROM leads WHERE status='DEMAND_FOUND') to_review, "+
-        "(SELECT count(*) FROM leads WHERE status='QUOTE_SENT') sent_quotes, "(SELECT count(*) FROM leads WHERE status='READY_TO_SEND') ready_quotes, "+"+
+        "(SELECT count(*) FROM leads WHERE status='QUOTE_SENT') sent_quotes, "+
+        "(SELECT count(*) FROM leads WHERE status='READY_TO_SEND') ready_quotes, "+
         "(SELECT max(last_success_at) FROM feeds WHERE name LIKE 'GenTender%') last_success"
       ).first();
       const heartbeat=await env.DB.prepare(
