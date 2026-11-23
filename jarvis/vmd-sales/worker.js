@@ -248,7 +248,11 @@ async function scanGentender(env,feed) {
 }
 
 async function run(env) {
+  // A fresh heartbeat is written on every scheduled cycle, including idle cycles.
+  await env.DB.prepare("UPDATE runtime_heartbeat SET last_started_at=?,last_status='running' WHERE id=1")
+    .bind(iso()).run();
   const results=[];
+  let mailHealthy=false, mailError=null;
   for(const feed of GT_SOURCES) results.push(await scanGentender(env,feed));
   let email={sent:0,blocked:"GMAIL_NOT_CONNECTED"}, inbox={replies:0};
   try {
@@ -256,13 +260,24 @@ async function run(env) {
     email=await sendAuthorized(env,token);
     inbox=await checkReplies(env,token);
     if(token) {
+      mailHealthy=true;
       const last=await env.DB.prepare("SELECT created_at FROM events WHERE kind='MAIL_READY' ORDER BY id DESC LIMIT 1").first();
       if(!last || Date.now()-Date.parse(last.created_at)>55*60*1000) {
         await record(env,"MAIL_READY",null,"Gmail OAuth token exchange and Gmail inbox API succeeded");
       }
-    }
-  } catch(e) {await record(env,"MAIL_ERROR",null,String(e?.message||e));}
-  return {time:iso(),feeds:results,email,inbox};
+    } else mailError="GMAIL_NOT_CONNECTED";
+  } catch(e) {
+    mailError=String(e?.message||e).slice(0,200);
+    await record(env,"MAIL_ERROR",null,mailError);
+  }
+  const scanFailure=results.find(x=>x.ok===false);
+  const failure=mailError||(scanFailure?scanFailure.name+": "+scanFailure.error:null);
+  const finished=iso();
+  await env.DB.prepare(
+    "UPDATE runtime_heartbeat SET last_completed_at=?,last_gmail_ok_at=CASE WHEN ?=1 THEN ? ELSE last_gmail_ok_at END,last_status=?,last_error=?,last_new_leads=?,last_sent=? WHERE id=1"
+  ).bind(finished,mailHealthy?1:0,finished,failure?"degraded":"ok",
+    failure,results.reduce((sum,x)=>sum+(x.new||0),0),email.sent||0).run();
+  return {time:finished,feeds:results,email,inbox,status:failure?"degraded":"ok"};
 }
 const authorized=(r,env)=>Boolean(env.ADMIN_TOKEN && r.headers.get("authorization")==="Bearer "+env.ADMIN_TOKEN);
 export default {
@@ -276,8 +291,16 @@ export default {
         "(SELECT count(*) FROM leads WHERE status='QUOTE_SENT') sent_quotes, "+
         "(SELECT max(last_success_at) FROM feeds WHERE name LIKE 'GenTender%') last_success"
       ).first();
+      const heartbeat=await env.DB.prepare(
+        "SELECT last_started_at,last_completed_at,last_gmail_ok_at,last_status,last_error,last_new_leads,last_sent FROM runtime_heartbeat WHERE id=1"
+      ).first();
+      const minutesSinceRun=heartbeat?.last_completed_at?(Date.now()-Date.parse(heartbeat.last_completed_at))/60000:null;
       return json({
-        service:"JARVIS VMD Sales",status:"running",monitoring:"every 5 minutes",
+        service:"JARVIS VMD Sales",
+        status:minutesSinceRun===null?"unverified":minutesSinceRun>15?"stale":heartbeat.last_status||"unknown",
+        monitoring:"every 5 minutes",
+        last_started:heartbeat?.last_started_at||null,last_completed:heartbeat?.last_completed_at||null,
+        last_gmail_ok:heartbeat?.last_gmail_ok_at||null,last_error:heartbeat?.last_error||null,
         source:"GenTender public procurement API",last_success:stats?.last_success||null,
         total_records:Number(stats?.total_leads||0),to_review:Number(stats?.to_review||0),
         quotes_sent:Number(stats?.sent_quotes||0),
