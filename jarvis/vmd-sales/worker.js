@@ -237,6 +237,11 @@ async function scanGentender(env,feed) {
    if(!response.ok) throw Error("GenTender HTTP "+response.status);
    const data=await response.json();
    if(!Array.isArray(data.rows)) throw Error("GenTender changed API response: rows missing");
+   if(data.rows.length && feed.name===GT_SOURCES[0].name) {
+     const known=await env.DB.prepare("SELECT id FROM events WHERE kind='SOURCE_FIELDS' LIMIT 1").first();
+     if(!known) await record(env,"SOURCE_FIELDS",null,
+       Object.keys(data.rows[0]).slice(0,80).join(",").slice(0,750));
+   }
    for(const item of data.rows.slice(0,50)) {
      const title=String(item.title||"").trim();
      if(!title || !relevant(title,"")) continue;
