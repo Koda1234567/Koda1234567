@@ -176,9 +176,73 @@ async function checkReplies(env, token) {
   }
   return {replies};
 }
+
+// Public keyless GenTender API, documented at https://gentender.ru/api
+// Their catalog refreshes daily, so do not poll faster than once per hour.
+// The source includes current open procedures by default, not direct permission to email.
+const GT_SOURCES=[
+ {name:"GenTender — поломоечная",q:"поломоечная"},
+ {name:"GenTender — поломоечные",q:"поломоечные"}
+];
+async function scanGentender(env,feed) {
+ const url="https://gentender.ru/api/tenders/search?q="+encodeURIComponent(feed.q)+"&limit=50";
+ const checked=iso();
+ const old=await env.DB.prepare("SELECT last_checked_at FROM feeds WHERE name=?").bind(feed.name).first();
+ if(old?.last_checked_at && Date.now()-Date.parse(old.last_checked_at)<60*60*1000) {
+   return {name:feed.name,skipped:true,reason:"hourly API throttle"};
+ }
+ let fresh=0,matched=0;
+ try {
+   const response=await fetch(url,{headers:{"accept":"application/json","user-agent":"JARVIS-VMD/1.1 business-procurement-monitor"},signal:AbortSignal.timeout(14000)});
+   if(!response.ok) throw Error("GenTender HTTP "+response.status);
+   const data=await response.json();
+   if(!Array.isArray(data.rows)) throw Error("GenTender changed API response: rows missing");
+   for(const item of data.rows.slice(0,50)) {
+     const title=String(item.title||"").trim();
+     if(!title || !relevant(title,"")) continue;
+     const reg=String(item.reg_number||"").trim();
+     if(!reg) continue;
+     // Canonical link remains a source search, not an unverified tender detail URL.
+     const sourceUrl="https://gentender.ru/search?q="+encodeURIComponent(reg);
+     const id="GT-"+reg.replace(/[^a-z0-9_-]/gi,"").slice(0,64);
+     if(id.length<5) continue;
+     matched++;
+     const meta=[
+       "Заказчик: "+String(item.customer_name||"не указан"),
+       "Регион: "+String(item.region||"не указан"),
+       "Цена закупки: "+(Number(item.price)>0?String(item.price)+" ₽":"нет"),
+       "Срок подачи: "+String(item.deadline_date||"не указан"),
+       "Статус: "+String(item.status_label||"не указан"),
+       "Закон: "+String(item.law||"не указан"),
+       "Площадка: "+String(item.etp_name||"не указана"),
+       "Номер: "+reg,
+       "Не подтверждает соответствие VMD или возможность отправить КП напрямую"
+     ].join(" | ").slice(0,1900);
+     const inserted=await env.DB.prepare(
+       "INSERT OR IGNORE INTO leads(id,source_name,source_url,title,summary,published_at,created_at,last_seen_at,status) VALUES(?,?,?,?,?,?,?,?,?)"
+     ).bind(id,feed.name,sourceUrl,title,meta,null,checked,checked,"DEMAND_FOUND").run();
+     if(inserted.meta?.changes){fresh++;await record(env,"LEAD_FOUND",id,title.slice(0,180));}
+     else await env.DB.prepare("UPDATE leads SET last_seen_at=? WHERE id=?").bind(checked,id).run();
+   }
+   await env.DB.prepare(
+     "INSERT INTO feeds(name,url,last_checked_at,last_success_at,last_error,last_items) VALUES(?,?,?,?,NULL,?) "+
+     "ON CONFLICT(name) DO UPDATE SET url=excluded.url,last_checked_at=excluded.last_checked_at,last_success_at=excluded.last_success_at,last_error=NULL,last_items=excluded.last_items"
+   ).bind(feed.name,url,checked,iso(),matched).run();
+   return {name:feed.name,ok:true,matched,new:fresh};
+ } catch(e) {
+   const err=String(e?.message||e).slice(0,250);
+   await env.DB.prepare(
+     "INSERT INTO feeds(name,url,last_checked_at,last_error) VALUES(?,?,?,?) "+
+     "ON CONFLICT(name) DO UPDATE SET last_checked_at=excluded.last_checked_at,last_error=excluded.last_error"
+   ).bind(feed.name,url,checked,err).run();
+   await record(env,"FEED_ERROR",null,feed.name+": "+err);
+   return {name:feed.name,ok:false,error:err};
+ }
+}
+
 async function run(env) {
   const results=[];
-  for(const feed of FEEDS) results.push(await scanFeed(env,feed));
+  for(const feed of GT_SOURCES) results.push(await scanGentender(env,feed));
   let email={sent:0,blocked:"GMAIL_NOT_CONNECTED"}, inbox={replies:0};
   try {
     const token=await googleToken(env);
