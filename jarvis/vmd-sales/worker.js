@@ -255,6 +255,12 @@ async function run(env) {
     const token=await googleToken(env);
     email=await sendAuthorized(env,token);
     inbox=await checkReplies(env,token);
+    if(token) {
+      const last=await env.DB.prepare("SELECT created_at FROM events WHERE kind='MAIL_READY' ORDER BY id DESC LIMIT 1").first();
+      if(!last || Date.now()-Date.parse(last.created_at)>55*60*1000) {
+        await record(env,"MAIL_READY",null,"Gmail OAuth token exchange and Gmail inbox API succeeded");
+      }
+    }
   } catch(e) {await record(env,"MAIL_ERROR",null,String(e?.message||e));}
   return {time:iso(),feeds:results,email,inbox};
 }
