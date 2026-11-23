@@ -38,7 +38,10 @@ function findItems(xml) {
   }));
 }
 function relevant(title, desc) {
-  return /поломоечн|поломойн|поломойк|машин[аы]?.{0,25}(мытья|мойки)\s+пола/i.test(title+" "+desc);
+  const text=String(title+" "+desc);
+  const isEquipment=/поломоечн|поломойн|поломойк|машин[аы]?.{0,25}(мытья|мойки)\s+пола/i.test(text);
+  const isOtherPurpose=/запасн|ремонт|технич.{0,15}обслужив|оказание услуг|аренд|реализац|утилизац|б\\/у|бывш.{0,8}употребл/i.test(String(title));
+  return isEquipment && !isOtherPurpose;
 }
 async function record(env, kind, leadId, detail) {
   await env.DB.prepare("INSERT INTO events(created_at,kind,lead_id,details) VALUES(?,?,?,?)")
