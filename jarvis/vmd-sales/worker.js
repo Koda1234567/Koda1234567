@@ -226,7 +226,12 @@ const GT_SOURCES=[
  {name:"GenTender — поломоечных машин",q:"поломоечных машин"},
  {name:"GenTender — электрополомойки",q:"электрополомойки"},
  {name:"GenTender — мытьё полов",q:"машина для мытья полов"},
- {name:"GenTender — подметально-поломоечные",q:"подметально-поломоечная"}
+ {name:"GenTender — подметально-поломоечные",q:"подметально-поломоечная"},
+ {name:"GenTender — поломоечная машина",q:"поломоечная машина"},
+ {name:"GenTender — машина для уборки полов",q:"машина для уборки полов"},
+ {name:"GenTender — аккумуляторная поломоечная",q:"аккумуляторная поломоечная"},
+ {name:"GenTender — поломоечное оборудование",q:"поломоечное оборудование"},
+ {name:"GenTender — скрубберы",q:"скруббер"}
 ];
 async function scanGentender(env,feed) {
  const url="https://gentender.ru/api/tenders/search?q="+encodeURIComponent(feed.q)+"&limit=50";
