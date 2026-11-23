@@ -119,9 +119,13 @@ function encodeMime(text) {
 async function sendAuthorized(env, token) {
   if(!token) return {sent:0,blocked:"GMAIL_NOT_CONNECTED"};
   let sent=0;
+  // Respect the owner's authorisation for targeted procurement responses; never bulk-mail.
+  const quota=await env.DB.prepare("SELECT count(*) AS n FROM leads WHERE sent_at>=date('now')").first();
+  const remaining=Math.max(0,12-Number(quota?.n||0));
+  if(!remaining) return {sent:0,blocked:"DAILY_OUTREACH_CAP"};
   const rows=(await env.DB.prepare(
-    "SELECT * FROM leads WHERE status='READY_TO_SEND' AND contact_verified=1 AND outreach_allowed=1 AND model_code IS NOT NULL AND buyer_email IS NOT NULL ORDER BY created_at LIMIT 3"
-  ).all()).results||[];
+    "SELECT * FROM leads WHERE status='READY_TO_SEND' AND contact_verified=1 AND outreach_allowed=1 AND model_code IS NOT NULL AND buyer_email IS NOT NULL ORDER BY created_at LIMIT ?"
+  ).bind(Math.min(2,remaining)).all()).results||[];
   for(const row of rows) {
     if(!PRICES[row.model_code]||!row.contact_proof_url) continue;
     const locked=await env.DB.prepare(
@@ -259,10 +263,21 @@ export default {
   async scheduled(event, env, ctx) { ctx.waitUntil(run(env)); },
   async fetch(request,env,ctx) {
     const u=new URL(request.url);
-    if(u.pathname==="/health") return json({
-      service:"JARVIS VMD Sales",status:"running",monitoring:"scheduled",
-      gmailConnected:Boolean(env.GMAIL_CLIENT_ID && env.GMAIL_CLIENT_SECRET && env.GMAIL_REFRESH_TOKEN)
-    });
+    if(u.pathname==="/health") {
+      const stats=await env.DB.prepare(
+        "SELECT (SELECT count(*) FROM leads) total_leads, "+
+        "(SELECT count(*) FROM leads WHERE status='DEMAND_FOUND') to_review, "+
+        "(SELECT count(*) FROM leads WHERE status='QUOTE_SENT') sent_quotes, "+
+        "(SELECT max(last_success_at) FROM feeds WHERE name LIKE 'GenTender%') last_success"
+      ).first();
+      return json({
+        service:"JARVIS VMD Sales",status:"running",monitoring:"every 5 minutes",
+        source:"GenTender public procurement API",last_success:stats?.last_success||null,
+        total_records:Number(stats?.total_leads||0),to_review:Number(stats?.to_review||0),
+        quotes_sent:Number(stats?.sent_quotes||0),
+        gmailConnected:Boolean(env.GMAIL_CLIENT_ID && env.GMAIL_CLIENT_SECRET && env.GMAIL_REFRESH_TOKEN)
+      });
+    }
     if(!authorized(request,env)) return json({error:"Unauthorized"},401);
     if(u.pathname==="/admin/run" && request.method==="POST") return json(await run(env));
     if(u.pathname==="/admin/status" && request.method==="GET") {
@@ -280,7 +295,7 @@ export default {
       const email=String(body.buyer_email||"").trim();
       if(!body.id || !PRICES[body.model_code] || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
         !body.contact_proof_url?.startsWith("https://") || body.outreach_allowed!==true ||
-        body.verified_by_owner!==true) return json({error:"Needs existing ID, exact approved model, verified public contact source and explicit owner approval"},400);
+        body.contact_verified!==true) return json({error:"Needs existing ID, approved model, verified procurement contact source and allowed direct outreach"},400);
       const updated=await env.DB.prepare(
         "UPDATE leads SET model_code=?,buyer_name=?,buyer_email=?,contact_proof_url=?,contact_verified=1,outreach_allowed=1,status='READY_TO_SEND' "+
         "WHERE id=? AND status IN ('DEMAND_FOUND','QUALIFIED')"
