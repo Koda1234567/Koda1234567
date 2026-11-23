@@ -222,7 +222,11 @@ async function checkReplies(env, token) {
 // The source includes current open procedures by default, not direct permission to email.
 const GT_SOURCES=[
  {name:"GenTender — поломоечная",q:"поломоечная"},
- {name:"GenTender — поломоечные",q:"поломоечные"}
+ {name:"GenTender — поломоечные",q:"поломоечные"},
+ {name:"GenTender — поломоечных машин",q:"поломоечных машин"},
+ {name:"GenTender — электрополомойки",q:"электрополомойки"},
+ {name:"GenTender — мытьё полов",q:"машина для мытья полов"},
+ {name:"GenTender — подметально-поломоечные",q:"подметально-поломоечная"}
 ];
 async function scanGentender(env,feed) {
  const url="https://gentender.ru/api/tenders/search?q="+encodeURIComponent(feed.q)+"&limit=50";
@@ -247,11 +251,22 @@ async function scanGentender(env,feed) {
      if(!title || !relevant(title,"")) continue;
      const reg=String(item.reg_number||"").trim();
      if(!reg) continue;
-     // Canonical link remains a source search, not an unverified tender detail URL.
-     const sourceUrl="https://gentender.ru/search?q="+encodeURIComponent(reg);
+     let sourceUrl="https://gentender.ru/search?q="+encodeURIComponent(reg);
+     try {
+       const direct=new URL(String(item.detail_url||""));
+       if(direct.protocol==="https:" && direct.hostname.length>3 &&
+          !/(?:localhost|127\.0\.0\.1|\.local)$/i.test(direct.hostname)) sourceUrl=direct.href;
+     } catch {}
      const id="GT-"+reg.replace(/[^a-z0-9_-]/gi,"").slice(0,64);
      if(id.length<5) continue;
      matched++;
+     const deadline=String(item.deadline_date||"").trim();
+     const price=Number(item.price||0);
+     const expired=/^\d{4}-\d{2}-\d{2}$/.test(deadline) && new Date(deadline+"T23:59:59+03:00").getTime()<Date.now();
+     const process=String(item.procedure_label||"")+" "+String(item.procedure_code||"");
+     const priceSurvey=/запрос ценовой информации|мониторинг цен|сбор коммерческих|маркетингов(ое|ые) исследование|запрос информации/i.test(process+" "+title);
+     const isFormalBid=/аукцион|конкурс|запрос котировок|электронной форме/i.test(process);
+     const status=expired?"EXPIRED":price>0 && price<PRICES["F-MOP LI-ION"]?"BELOW_MIN_PRICE":priceSurvey?"PRICE_REQUEST":isFormalBid?"ETP_REQUIRED":"DEMAND_FOUND";
      const meta=[
        "Заказчик: "+String(item.customer_name||"не указан"),
        "Регион: "+String(item.region||"не указан"),
@@ -259,13 +274,15 @@ async function scanGentender(env,feed) {
        "Срок подачи: "+String(item.deadline_date||"не указан"),
        "Статус: "+String(item.status_label||"не указан"),
        "Закон: "+String(item.law||"не указан"),
+       "Тип процедуры: "+String(item.procedure_label||"не указан"),
        "Площадка: "+String(item.etp_name||"не указана"),
        "Номер: "+reg,
-       "Не подтверждает соответствие VMD или возможность отправить КП напрямую"
+       "Канал: "+(isFormalBid?"заявка через ЭТП":priceSurvey?"запрос цен, необходимо проверить реквизиты ответа":"проверить канал связи"),
+       "Соответствие VMD и контакт поставщика ещё не проверены"
      ].join(" | ").slice(0,1900);
      const inserted=await env.DB.prepare(
        "INSERT OR IGNORE INTO leads(id,source_name,source_url,title,summary,published_at,created_at,last_seen_at,status) VALUES(?,?,?,?,?,?,?,?,?)"
-     ).bind(id,feed.name,sourceUrl,title,meta,null,checked,checked,"DEMAND_FOUND").run();
+     ).bind(id,feed.name,sourceUrl,title,meta,String(item.publish_date||"")||null,checked,checked,status).run();
      if(inserted.meta?.changes){fresh++;await record(env,"LEAD_FOUND",id,title.slice(0,180));}
      else await env.DB.prepare("UPDATE leads SET last_seen_at=? WHERE id=?").bind(checked,id).run();
    }
