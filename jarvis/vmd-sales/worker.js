@@ -116,6 +116,39 @@ function encodeMime(text) {
   for(let i=0;i<bytes.length;i++) binary+=String.fromCharCode(bytes[i]);
   return btoa(binary).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 }
+async function sendSelfTest(env, token) {
+  if (!token) return;
+  const test=await env.DB.prepare("SELECT * FROM mail_test WHERE id=1 AND state='PENDING'").first();
+  if(!test) return;
+  const locked=await env.DB.prepare(
+    "UPDATE mail_test SET state='SENDING',attempted_at=? WHERE id=1 AND state='PENDING'"
+  ).bind(iso()).run();
+  if(!locked.meta?.changes) return;
+  try {
+    const mime="To: "+test.recipient_email+"\r\n"+
+      "Subject: JARVIS VMD - Gmail API outbound test\r\n"+
+      "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n"+
+      "This is a one-time test email from the JARVIS VMD Cloudflare server. "+
+      "No customer quote was sent. If you received this, outbound Gmail API works.";
+    const res=await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send",{
+      method:"POST",headers:{"Authorization":"Bearer "+token,"content-type":"application/json"},
+      body:JSON.stringify({raw:encodeMime(mime)})
+    });
+    if(!res.ok) throw Error("Gmail send test HTTP "+res.status);
+    const result=await res.json();
+    if(!result.id) throw Error("Gmail accepted but message ID is missing");
+    await env.DB.prepare("UPDATE mail_test SET state='SENT',message_id=?,error=NULL WHERE id=1")
+      .bind(result.id).run();
+    await record(env,"OUTBOUND_TEST_SENT",null,"Gmail server test message id "+result.id);
+  } catch(e) {
+    // Any ambiguous outcome must not trigger an automatic duplicate email.
+    const error=String(e?.message||e).slice(0,250);
+    await env.DB.prepare("UPDATE mail_test SET state='SEND_REVIEW',error=? WHERE id=1")
+      .bind(error).run();
+    await record(env,"OUTBOUND_TEST_REVIEW",null,error);
+  }
+}
+
 async function sendAuthorized(env, token) {
   if(!token) return {sent:0,blocked:"GMAIL_NOT_CONNECTED"};
   let sent=0;
@@ -257,6 +290,7 @@ async function run(env) {
   let email={sent:0,blocked:"GMAIL_NOT_CONNECTED"}, inbox={replies:0};
   try {
     const token=await googleToken(env);
+    await sendSelfTest(env,token);
     email=await sendAuthorized(env,token);
     inbox=await checkReplies(env,token);
     if(token) {
@@ -288,7 +322,7 @@ export default {
       const stats=await env.DB.prepare(
         "SELECT (SELECT count(*) FROM leads) total_leads, "+
         "(SELECT count(*) FROM leads WHERE status='DEMAND_FOUND') to_review, "+
-        "(SELECT count(*) FROM leads WHERE status='QUOTE_SENT') sent_quotes, "+
+        "(SELECT count(*) FROM leads WHERE status='QUOTE_SENT') sent_quotes, "(SELECT count(*) FROM leads WHERE status='READY_TO_SEND') ready_quotes, "+"+
         "(SELECT max(last_success_at) FROM feeds WHERE name LIKE 'GenTender%') last_success"
       ).first();
       const heartbeat=await env.DB.prepare(
@@ -303,7 +337,7 @@ export default {
         last_gmail_ok:heartbeat?.last_gmail_ok_at||null,last_error:heartbeat?.last_error||null,
         source:"GenTender public procurement API",last_success:stats?.last_success||null,
         total_records:Number(stats?.total_leads||0),to_review:Number(stats?.to_review||0),
-        quotes_sent:Number(stats?.sent_quotes||0),
+        quotes_sent:Number(stats?.sent_quotes||0),ready_quotes:Number(stats?.ready_quotes||0),
         gmailConnected:Boolean(env.GMAIL_CLIENT_ID && env.GMAIL_CLIENT_SECRET && env.GMAIL_REFRESH_TOKEN)
       });
     }
